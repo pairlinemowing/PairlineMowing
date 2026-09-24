@@ -69,11 +69,6 @@ function showSetup(
 }
 
 function showDashboard() {
-  /*
-    The dashboard is only shown when a verified,
-    authorized Supabase user exists.
-  */
-
   if (!user) {
     showLogin();
     return;
@@ -143,12 +138,6 @@ const defaultServices = [
     sort_order: 5
   }
 ];
-
-/*
-  No fake/default reviews.
-  If there are no real reviews in Supabase,
-  the admin editor will simply be empty.
-*/
 
 const defaultReviews = [];
 
@@ -335,9 +324,6 @@ async function signIn() {
 async function signOut() {
   user = null;
 
-  /*
-    Hide the dashboard immediately.
-  */
   showLogin();
 
   if (!sb) {
@@ -388,10 +374,6 @@ async function handleUser(u) {
     return;
   }
 
-  /*
-    Check the authenticated Supabase user
-    against the owner email.
-  */
   if (!isOwner(u)) {
     user = null;
 
@@ -415,9 +397,6 @@ async function handleUser(u) {
     return;
   }
 
-  /*
-    Only now do we consider the user authorized.
-  */
   user = u;
 
   showDashboard();
@@ -430,10 +409,6 @@ async function handleUser(u) {
 ----------------------------- */
 
 async function check() {
-  /*
-    ALWAYS hide the dashboard while
-    the authentication state is checked.
-  */
   user = null;
   showLogin();
 
@@ -441,9 +416,6 @@ async function check() {
     return;
   }
 
-  /*
-    Listen for future authentication changes.
-  */
   sb.auth.onAuthStateChange(
     (event, session) => {
 
@@ -451,10 +423,6 @@ async function check() {
         event === 'SIGNED_IN' &&
         session?.user
       ) {
-        /*
-          Use a timeout so Supabase can finish
-          updating its internal session state.
-        */
         setTimeout(() => {
           handleUser(session.user);
         }, 0);
@@ -469,14 +437,6 @@ async function check() {
     }
   );
 
-  /*
-    IMPORTANT:
-    We do NOT sign out here.
-
-    Supabase can keep the authenticated session
-    after a page refresh. We retrieve that session
-    and verify the user before showing the dashboard.
-  */
   try {
     const {
       data,
@@ -568,10 +528,6 @@ async function loadAll() {
         .maybeSingle()
     ]);
 
-    /*
-      If the session disappeared while loading,
-      immediately hide the dashboard.
-    */
     if (!user) {
       showLogin();
       return;
@@ -770,11 +726,6 @@ async function saveServices() {
       .neq('id', 0);
 
     if (deleteError) {
-      console.error(
-        'Services delete error:',
-        deleteError
-      );
-
       setStatus(
         'servicesEditor',
         deleteError.message,
@@ -792,11 +743,6 @@ async function saveServices() {
         .insert(services);
 
       if (insertError) {
-        console.error(
-          'Services insert error:',
-          insertError
-        );
-
         setStatus(
           'servicesEditor',
           insertError.message,
@@ -823,7 +769,8 @@ async function saveServices() {
 
     setStatus(
       'servicesEditor',
-      error.message || 'Could not save services.',
+      error.message ||
+      'Could not save services.',
       false
     );
   }
@@ -836,11 +783,65 @@ async function saveServices() {
 const GALLERY_BUCKET =
   'SITE-IMAGES';
 
+/*
+  Create a clean file name for Supabase Storage.
+*/
+function createGalleryFileName(file) {
+  const extension =
+    file.name.includes('.')
+      ? file.name
+          .split('.')
+          .pop()
+          .toLowerCase()
+      : 'jpg';
+
+  return `gallery/${crypto.randomUUID()}.${extension}`;
+}
+
 function renderGallery(items) {
   const box =
     $('galleryEditor');
 
   if (!box) return;
+
+  if (!items.length) {
+    box.innerHTML = `
+      <div class="admin-card">
+
+        <p>
+          No Our Work photos have been added yet.
+        </p>
+
+        <button
+          type="button"
+          id="addFirstGallery">
+          Add Photo
+        </button>
+
+      </div>
+    `;
+
+    $('addFirstGallery')
+      ?.addEventListener(
+        'click',
+        () => {
+          if (!user) {
+            showLogin();
+            return;
+          }
+
+          renderGallery([
+            {
+              title: '',
+              image_url: '',
+              sort_order: 1
+            }
+          ]);
+        }
+      );
+
+    return;
+  }
 
   box.innerHTML =
     items.map((item, i) => {
@@ -851,15 +852,19 @@ function renderGallery(items) {
         '';
 
       return `
-        <div class="admin-card">
+        <div
+          class="admin-card"
+          data-gallery-card="${i}">
 
           <div class="admin-grid">
 
             <div class="field">
-              <label>Title</label>
+              <label>Photo title</label>
 
               <input
+                type="text"
                 data-gallery-title="${i}"
+                placeholder="Example: Front yard mowing"
                 value="${esc(
                   item.title || ''
                 )}">
@@ -877,30 +882,45 @@ function renderGallery(items) {
             </div>
 
             <div class="field full">
-              <label>Image</label>
 
-              ${
-                imageUrl
-                  ? `
-                    <div style="margin-bottom:10px;">
+              <label>Photo</label>
+
+              <div
+                data-gallery-preview="${i}"
+                style="margin-bottom:10px;">
+
+                ${
+                  imageUrl
+                    ? `
                       <img
                         src="${esc(imageUrl)}"
                         alt="${esc(
                           item.title ||
-                          'Gallery image'
+                          'Our Work photo'
                         )}"
                         style="
                           display:block;
                           width:100%;
-                          max-width:320px;
-                          max-height:220px;
+                          max-width:420px;
+                          max-height:280px;
                           object-fit:cover;
                           border-radius:10px;
                         ">
-                    </div>
-                  `
-                  : ''
-              }
+                    `
+                    : `
+                      <div
+                        style="
+                          padding:30px;
+                          border:1px dashed #aaa;
+                          border-radius:10px;
+                          text-align:center;
+                        ">
+                        No photo uploaded yet.
+                      </div>
+                    `
+                }
+
+              </div>
 
               <input
                 type="file"
@@ -912,16 +932,35 @@ function renderGallery(items) {
                 data-gallery-url="${i}"
                 value="${esc(imageUrl)}">
 
-              <button
-                type="button"
-                data-gallery-upload="${i}"
-                style="margin-top:8px;">
-                Upload Image
-              </button>
+              <div
+                style="
+                  display:flex;
+                  flex-wrap:wrap;
+                  gap:8px;
+                  margin-top:10px;
+                ">
+
+                <button
+                  type="button"
+                  data-gallery-upload="${i}">
+                  Upload / Replace Photo
+                </button>
+
+                <button
+                  type="button"
+                  data-gallery-delete="${i}"
+                  style="
+                    background:#9d2c2c;
+                    color:white;
+                  ">
+                  Delete Photo
+                </button>
+
+              </div>
 
               <div
                 data-gallery-status="${i}"
-                style="margin-top:6px;">
+                style="margin-top:8px;">
               </div>
 
             </div>
@@ -933,6 +972,7 @@ function renderGallery(items) {
     }).join('');
 
   items.forEach((item, i) => {
+
     $(`galleryEditor`)
       ?.querySelector(
         `[data-gallery-upload="${i}"]`
@@ -940,6 +980,15 @@ function renderGallery(items) {
       ?.addEventListener(
         'click',
         () => uploadGalleryImage(i)
+      );
+
+    $(`galleryEditor`)
+      ?.querySelector(
+        `[data-gallery-delete="${i}"]`
+      )
+      ?.addEventListener(
+        'click',
+        () => deleteGalleryImage(i)
       );
   });
 }
@@ -988,7 +1037,7 @@ async function uploadGalleryImage(index) {
   if (!fileInput?.files?.length) {
     if (status) {
       status.textContent =
-        'Choose an image first.';
+        'Choose a photo first.';
 
       status.style.color =
         '#9d2c2c';
@@ -1012,10 +1061,6 @@ async function uploadGalleryImage(index) {
     return;
   }
 
-  /*
-    Basic file-size protection.
-    10 MB maximum.
-  */
   const MAX_FILE_SIZE =
     10 * 1024 * 1024;
 
@@ -1039,16 +1084,18 @@ async function uploadGalleryImage(index) {
   }
 
   try {
-    const extension =
-      file.name.includes('.')
-        ? file.name
-            .split('.')
-            .pop()
-            .toLowerCase()
-        : 'jpg';
+    /*
+      If this gallery slot already has an image,
+      remember the old URL so it can be removed
+      after the new image is successfully uploaded.
+    */
+    const oldUrl =
+      document.querySelector(
+        `[data-gallery-url="${index}"]`
+      )?.value.trim() || '';
 
     const fileName =
-      `gallery/${crypto.randomUUID()}.${extension}`;
+      createGalleryFileName(file);
 
     const {
       error: uploadError
@@ -1100,6 +1147,14 @@ async function uploadGalleryImage(index) {
           '#9d2c2c';
       }
 
+      /*
+        Try to remove the newly uploaded file
+        if its public URL could not be obtained.
+      */
+      await sb.storage
+        .from(GALLERY_BUCKET)
+        .remove([fileName]);
+
       return;
     }
 
@@ -1113,74 +1168,61 @@ async function uploadGalleryImage(index) {
         publicUrl;
     }
 
-    if (status) {
-      status.textContent =
-        'Image uploaded successfully.';
+    /*
+      Update preview.
+    */
+    const previewBox =
+      document.querySelector(
+        `[data-gallery-preview="${index}"]`
+      );
 
-      status.style.color = '';
+    if (previewBox) {
+      previewBox.innerHTML = `
+        <img
+          src="${esc(publicUrl)}"
+          alt="Our Work photo"
+          style="
+            display:block;
+            width:100%;
+            max-width:420px;
+            max-height:280px;
+            object-fit:cover;
+            border-radius:10px;
+          ">
+      `;
     }
 
     /*
-      Update the preview without rebuilding
-      the entire gallery editor.
+      Delete the old Storage image after the
+      new one has uploaded successfully.
     */
-    const card =
-      document.querySelector(
-        `[data-gallery-file="${index}"]`
-      )?.closest(
-        '.admin-card'
-      );
+    if (oldUrl) {
+      const oldPath =
+        getStoragePathFromPublicUrl(
+          oldUrl
+        );
 
-    if (card) {
-      const oldPreview =
-        card.querySelector('img');
+      if (oldPath) {
+        const {
+          error: removeError
+        } = await sb.storage
+          .from(GALLERY_BUCKET)
+          .remove([oldPath]);
 
-      if (oldPreview) {
-        oldPreview.src =
-          publicUrl;
-
-      } else {
-        const preview =
-          document.createElement('img');
-
-        preview.src =
-          publicUrl;
-
-        preview.alt =
-          'Gallery image';
-
-        preview.style.display =
-          'block';
-
-        preview.style.width =
-          '100%';
-
-        preview.style.maxWidth =
-          '320px';
-
-        preview.style.maxHeight =
-          '220px';
-
-        preview.style.objectFit =
-          'cover';
-
-        preview.style.borderRadius =
-          '10px';
-
-        preview.style.marginBottom =
-          '10px';
-
-        const fileField =
-          card.querySelector(
-            `[data-gallery-file="${index}"]`
+        if (removeError) {
+          console.warn(
+            'New image uploaded, but old image could not be removed:',
+            removeError
           );
-
-        fileField?.parentElement
-          ?.insertBefore(
-            preview,
-            fileField
-          );
+        }
       }
+    }
+
+    if (status) {
+      status.textContent =
+        'Photo uploaded. Click "Save Gallery" to publish it.';
+
+      status.style.color = '';
     }
 
   } catch (error) {
@@ -1201,6 +1243,199 @@ async function uploadGalleryImage(index) {
   }
 }
 
+/*
+  Converts a public Supabase Storage URL
+  back into the Storage file path.
+*/
+function getStoragePathFromPublicUrl(url) {
+  if (!url) return '';
+
+  try {
+    const marker =
+      `/storage/v1/object/public/${GALLERY_BUCKET}/`;
+
+    const position =
+      url.indexOf(marker);
+
+    if (position === -1) {
+      return '';
+    }
+
+    return decodeURIComponent(
+      url.substring(
+        position + marker.length
+      )
+    );
+
+  } catch (error) {
+    console.error(
+      'Could not determine Storage path:',
+      error
+    );
+
+    return '';
+  }
+}
+
+async function deleteGalleryImage(index) {
+  if (!sb || !user) {
+    showLogin();
+    return;
+  }
+
+  const urlInput =
+    document.querySelector(
+      `[data-gallery-url="${index}"]`
+    );
+
+  const currentUrl =
+    urlInput?.value.trim() || '';
+
+  const status =
+    document.querySelector(
+      `[data-gallery-status="${index}"]`
+    );
+
+  const card =
+    document.querySelector(
+      `[data-gallery-card="${index}"]`
+    );
+
+  if (!currentUrl) {
+    /*
+      If this is just an empty unsaved slot,
+      remove the slot from the editor.
+    */
+    const current =
+      collectGallery();
+
+    if (card) {
+      card.remove();
+    }
+
+    if (status) {
+      status.textContent =
+        'Empty photo slot removed.';
+    }
+
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      'Are you sure you want to delete this photo? This cannot be undone.'
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  if (status) {
+    status.textContent =
+      'Deleting...';
+
+    status.style.color = '';
+  }
+
+  try {
+    /*
+      First remove the actual image from
+      Supabase Storage.
+    */
+    const storagePath =
+      getStoragePathFromPublicUrl(
+        currentUrl
+      );
+
+    if (storagePath) {
+      const {
+        error: storageError
+      } = await sb.storage
+        .from(GALLERY_BUCKET)
+        .remove([storagePath]);
+
+      if (storageError) {
+        console.error(
+          'Storage delete error:',
+          storageError
+        );
+
+        if (status) {
+          status.textContent =
+            'Could not delete the image file: ' +
+            storageError.message;
+
+          status.style.color =
+            '#9d2c2c';
+        }
+
+        return;
+      }
+    }
+
+    /*
+      Remove the gallery database record
+      using the image URL.
+    */
+    const {
+      error: databaseError
+    } = await sb
+      .from('gallery')
+      .delete()
+      .eq(
+        'image_url',
+        currentUrl
+      );
+
+    if (databaseError) {
+      console.error(
+        'Gallery database delete error:',
+        databaseError
+      );
+
+      if (status) {
+        status.textContent =
+          'Image file deleted, but the gallery record could not be removed: ' +
+          databaseError.message;
+
+        status.style.color =
+          '#9d2c2c';
+      }
+
+      return;
+    }
+
+    if (status) {
+      status.textContent =
+        'Photo deleted.';
+
+      status.style.color = '';
+    }
+
+    /*
+      Reload the gallery so the deleted
+      photo disappears completely.
+    */
+    await loadAll();
+
+  } catch (error) {
+    console.error(
+      'Unexpected gallery delete error:',
+      error
+    );
+
+    if (status) {
+      status.textContent =
+        'Delete error: ' +
+        (error.message ||
+          'Unknown error');
+
+      status.style.color =
+        '#9d2c2c';
+    }
+  }
+}
+
 async function saveGallery() {
   if (!sb || !user) {
     showLogin();
@@ -1211,6 +1446,12 @@ async function saveGallery() {
     collectGallery();
 
   try {
+    /*
+      Save the current gallery list.
+
+      We only delete/reinsert database records here.
+      The actual image files stay in Storage.
+    */
     const {
       error: deleteError
     } = await sb
@@ -1220,7 +1461,7 @@ async function saveGallery() {
 
     if (deleteError) {
       console.error(
-        'Gallery delete error:',
+        'Gallery database delete error:',
         deleteError
       );
 
@@ -1242,7 +1483,7 @@ async function saveGallery() {
 
       if (insertError) {
         console.error(
-          'Gallery insert error:',
+          'Gallery database insert error:',
           insertError
         );
 
@@ -1258,7 +1499,7 @@ async function saveGallery() {
 
     setStatus(
       'galleryEditor',
-      'Gallery saved.',
+      'Our Work photos saved.',
       true
     );
 
@@ -1445,11 +1686,6 @@ async function saveReviews() {
       .neq('id', 0);
 
     if (deleteError) {
-      console.error(
-        'Reviews delete error:',
-        deleteError
-      );
-
       setStatus(
         'reviewsEditor',
         deleteError.message,
@@ -1467,11 +1703,6 @@ async function saveReviews() {
         .insert(items);
 
       if (insertError) {
-        console.error(
-          'Reviews insert error:',
-          insertError
-        );
-
         setStatus(
           'reviewsEditor',
           insertError.message,
@@ -1542,11 +1773,6 @@ async function saveSettings() {
       });
 
     if (error) {
-      console.error(
-        'Settings save error:',
-        error
-      );
-
       setStatus(
         'settingsStatus',
         error.message,
