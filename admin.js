@@ -5,23 +5,28 @@ const defaultReviews=[{name:'Pamela B.',title:'Great price',text:'I had lawn ser
 function showSetup(){ $('setupNotice').classList.remove('hidden');$('login').classList.add('hidden');}
 function setStatus(id,msg,ok=true){$(id).innerHTML=`<div class="status" style="border-left-color:${ok?'#5fbf21':'#b52c2c'}">${esc(msg)}</div>`;}
 async function signIn(){
-  if(!sb){showSetup();return;}
-
-  const email=$('emailInput').value.trim();
-  const password=$('passwordInput').value;
-
-  if(!email||!password){
-    setStatus('loginStatus','That account is not authorized for the owner dashboard.',false);
+  if(!sb){
+    showSetup();
     return;
   }
 
-  const {data,error}=await sb.auth.signInWithPassword({
-    email:email,
-    password:password
+  const email = $('emailInput').value.trim();
+  const password = $('passwordInput').value;
+
+  if(!email || !password){
+    setStatus('loginStatus','Enter your email and password.',false);
+    return;
+  }
+
+  const {error} = await sb.auth.signInWithPassword({
+    email: email,
+    password: password
   });
 
   if(error){
     setStatus('loginStatus',error.message,false);
+  }
+}
     return;
   }
 
