@@ -1,15 +1,23 @@
 const C = window.PAIRLINE_CONFIG || {};
+
 const hasConfig = Boolean(
   C.SUPABASE_URL &&
   C.SUPABASE_ANON_KEY &&
   C.OWNER_EMAIL &&
   window.supabase
 );
+
 const sb = hasConfig
-  ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY)
+  ? window.supabase.createClient(
+      C.SUPABASE_URL,
+      C.SUPABASE_ANON_KEY
+    )
   : null;
+
 let user = null;
+
 const $ = id => document.getElementById(id);
+
 function esc(v = '') {
   return String(v).replace(
     /[&<>'"]/g,
@@ -22,6 +30,7 @@ function esc(v = '') {
     }[c])
   );
 }
+
 const defaultServices = [
   ['01','Lawn Mowing','Consistent mowing to keep your lawn clean, even, and well maintained.'],
   ['02','Edging','Crisp edges along sidewalks, driveways, and lawn borders for a finished look.'],
@@ -30,6 +39,7 @@ const defaultServices = [
   ['05','Lawn Mower Repairs','Repair help for lawn mowers and related equipment. Contact us with the issue.'],
   ['06','Whipper & Equipment Repairs','Repair help for whippers and other lawn equipment. Contact us to discuss your equipment.']
 ];
+
 const defaultReviews = [
   {
     name:'Pamela B.',
@@ -47,10 +57,28 @@ const defaultReviews = [
     text:'These guys do excellent work. They have a great attention to detail, work quickly and make sure the job is done right.'
   }
 ];
+
+function hideDashboard() {
+  $('dashboard').classList.add('hidden');
+}
+
+function showLogin() {
+  $('login').classList.remove('hidden');
+  $('dashboard').classList.add('hidden');
+}
+
 function showSetup() {
   $('setupNotice').classList.remove('hidden');
   $('login').classList.add('hidden');
+  $('dashboard').classList.add('hidden');
 }
+
+function showDashboard() {
+  $('login').classList.add('hidden');
+  $('setupNotice').classList.add('hidden');
+  $('dashboard').classList.remove('hidden');
+}
+
 function setStatus(id, msg, ok = true) {
   $(id).innerHTML = `
     <div class="status" style="border-left-color:${ok ? '#5fbf21' : '#b52c2c'}">
@@ -58,71 +86,106 @@ function setStatus(id, msg, ok = true) {
     </div>
   `;
 }
+
 async function signIn() {
   if (!sb) {
     showSetup();
     return;
   }
+
   const email = $('emailInput').value.trim();
   const password = $('passwordInput').value;
+
   if (!email || !password) {
-    setStatus('loginStatus','Enter your email and password.',false);
+    setStatus(
+      'loginStatus',
+      'Enter your email and password.',
+      false
+    );
     return;
   }
+
   const { error } = await sb.auth.signInWithPassword({
     email: email,
     password: password
   });
+
   if (error) {
-    setStatus('loginStatus',error.message,false);
+    showLogin();
+    setStatus(
+      'loginStatus',
+      error.message,
+      false
+    );
   }
 }
+
 async function check() {
+  // Always hide the dashboard before checking authentication.
+  hideDashboard();
+
   if (!sb) {
     showSetup();
     return;
   }
+
+  showLogin();
+
   const { data, error } = await sb.auth.getSession();
+
   if (error) {
-    setStatus('loginStatus',error.message,false);
-    $('login').classList.remove('hidden');
+    showLogin();
+    setStatus(
+      'loginStatus',
+      error.message,
+      false
+    );
     return;
   }
+
   if (data.session) {
     await handleUser(data.session.user);
-  } else {
-    $('login').classList.remove('hidden');
   }
-  sb.auth.onAuthStateChange((_event,session) => {
+
+  sb.auth.onAuthStateChange((_event, session) => {
     setTimeout(() => {
       if (session) {
         handleUser(session.user);
       } else {
-        $('dashboard').classList.add('hidden');
-        $('login').classList.remove('hidden');
+        showLogin();
       }
-    },0);
+    }, 0);
   });
 }
+
 async function handleUser(u) {
   user = u;
-  if (
-    (u.email || '').toLowerCase() !==
-    C.OWNER_EMAIL.toLowerCase()
-  ) {
+
+  const signedInEmail =
+    (u.email || '').trim().toLowerCase();
+
+  const ownerEmail =
+    (C.OWNER_EMAIL || '').trim().toLowerCase();
+
+  if (!ownerEmail || signedInEmail !== ownerEmail) {
     await sb.auth.signOut();
-    $('login').classList.remove('hidden');
+
+    showLogin();
+
     setStatus(
       'loginStatus',
       'That email is not authorized for the owner dashboard.',
       false
     );
+
     return;
   }
-  $('login').classList.add('hidden');
-  $('dashboard').classList.remove('hidden');
+
+  showDashboard();
+
   await loadAll();
 }
+
 async function loadAll() {
   const [
     { data:s },
@@ -135,6 +198,7 @@ async function loadAll() {
     sb.from('reviews').select('*').order('sort_order'),
     sb.from('site_settings').select('*').eq('id',1).maybeSingle()
   ]);
+
   renderServices(
     s?.length
       ? s
@@ -146,7 +210,9 @@ async function loadAll() {
           sort_order:Number(x[0])
         }))
   );
+
   renderGallery(g || []);
+
   renderReviews(
     r?.length
       ? r
@@ -156,26 +222,32 @@ async function loadAll() {
           sort_order:i+1
         }))
   );
+
   $('googleUrl').value =
     set?.google_review_url ||
     C.GOOGLE_REVIEW_URL ||
     '';
+
   $('leaveReviewUrl').value =
     set?.leave_review_url ||
     C.LEAVE_REVIEW_URL ||
     'https://g.page/r/CVTTVOFnIt7jEAE/review';
+
   $('areaText').value =
     set?.service_area_text ||
     'Pairline Mowing serves Port Huron, Michigan and surrounding areas. Contact us to ask whether your address is within our service area.';
 }
+
 function renderServices(items) {
   $('servicesEditor').innerHTML = items.map((s,i) => `
     <div class="list-item service-edit">
       <div class="admin-grid">
+
         <div class="field">
           <label>Service name</label>
           <input data-k="name" value="${esc(s.name)}">
         </div>
+
         <div class="field">
           <label>Order</label>
           <input
@@ -184,10 +256,12 @@ function renderServices(items) {
             value="${Number(s.sort_order || i+1)}"
           >
         </div>
+
         <div class="field full">
           <label>Description</label>
           <textarea data-k="description">${esc(s.description)}</textarea>
         </div>
+
         <div class="field">
           <label>Published</label>
           <select data-k="published">
@@ -195,14 +269,18 @@ function renderServices(items) {
             <option value="false" ${s.published === false ? 'selected' : ''}>No</option>
           </select>
         </div>
+
       </div>
     </div>
   `).join('');
 }
+
 function renderGallery(items) {
   $('galleryEditor').innerHTML = items.map((g,i) => `
     <div class="list-item gallery-edit">
+
       <div class="file-row">
+
         <div class="field">
           <label>Caption</label>
           <input
@@ -211,6 +289,7 @@ function renderGallery(items) {
             data-old-url="${esc(g.image_url || '')}"
           >
         </div>
+
         <div class="field">
           <label>Order</label>
           <input
@@ -219,11 +298,14 @@ function renderGallery(items) {
             value="${Number(g.sort_order || i+1)}"
           >
         </div>
+
       </div>
+
       <div class="field" style="margin-top:10px">
         <label>Replace image</label>
         <input type="file" accept="image/*" data-file>
       </div>
+
       <div class="field" style="margin-top:10px">
         <label>Published</label>
         <select data-k="published">
@@ -231,28 +313,35 @@ function renderGallery(items) {
           <option value="false" ${g.published === false ? 'selected' : ''}>No</option>
         </select>
       </div>
+
       <div class="muted" style="margin-top:8px">
         Current image: ${esc(g.image_url || 'none')}
       </div>
+
     </div>
   `).join('');
 }
+
 function renderReviews(items) {
   $('reviewsEditor').innerHTML = items.map((r,i) => `
     <div class="list-item review-edit">
       <div class="admin-grid">
+
         <div class="field">
           <label>Name</label>
           <input data-k="name" value="${esc(r.name)}">
         </div>
+
         <div class="field">
           <label>Title</label>
           <input data-k="title" value="${esc(r.title || '')}">
         </div>
+
         <div class="field full">
           <label>Review text</label>
           <textarea data-k="text">${esc(r.text)}</textarea>
         </div>
+
         <div class="field">
           <label>Published</label>
           <select data-k="published">
@@ -260,13 +349,28 @@ function renderReviews(items) {
             <option value="false" ${r.published === false ? 'selected' : ''}>No</option>
           </select>
         </div>
+
       </div>
     </div>
   `).join('');
 }
+
 $('signInBtn').onclick = signIn;
-$('signOut').onclick = () => sb.auth.signOut();
+
+$('signOut').onclick = async () => {
+  if (sb) {
+    await sb.auth.signOut();
+  }
+
+  showLogin();
+};
+
 $('saveSettings').onclick = async () => {
+  if (!user) {
+    showLogin();
+    return;
+  }
+
   const { error } = await sb
     .from('site_settings')
     .upsert({
@@ -275,30 +379,43 @@ $('saveSettings').onclick = async () => {
       leave_review_url:$('leaveReviewUrl').value.trim(),
       service_area_text:$('areaText').value.trim()
     });
+
   setStatus(
     'settingsStatus',
     error ? error.message : 'Settings saved.',
     !error
   );
 };
+
 $('addService').onclick = () => {
-  const n = document.querySelectorAll('.service-edit').length + 1;
+  const n =
+    document.querySelectorAll('.service-edit').length + 1;
+
   const box = document.createElement('div');
   box.className = 'list-item service-edit';
+
   box.innerHTML = `
     <div class="admin-grid">
+
       <div class="field">
         <label>Service name</label>
         <input data-k="name" value="New service">
       </div>
+
       <div class="field">
         <label>Order</label>
-        <input type="number" data-k="sort_order" value="${n}">
+        <input
+          type="number"
+          data-k="sort_order"
+          value="${n}"
+        >
       </div>
+
       <div class="field full">
         <label>Description</label>
         <textarea data-k="description"></textarea>
       </div>
+
       <div class="field">
         <label>Published</label>
         <select data-k="published">
@@ -306,16 +423,32 @@ $('addService').onclick = () => {
           <option value="false">No</option>
         </select>
       </div>
+
     </div>
   `;
+
   $('servicesEditor').appendChild(box);
 };
+
 $('saveServices').onclick = async () => {
-  const rows = [...document.querySelectorAll('.service-edit')];
-  await sb.from('services').delete().neq('id',0);
+  if (!user) {
+    showLogin();
+    return;
+  }
+
+  const rows =
+    [...document.querySelectorAll('.service-edit')];
+
+  await sb
+    .from('services')
+    .delete()
+    .neq('id',0);
+
   for (const row of rows) {
+
     const get = k =>
       row.querySelector(`[data-k="${k}"]`).value;
+
     const { error } = await sb
       .from('services')
       .insert({
@@ -324,22 +457,39 @@ $('saveServices').onclick = async () => {
         sort_order:Number(get('sort_order')),
         published:get('published') === 'true'
       });
+
     if (error) {
-      setStatus('servicesEditor',error.message,false);
+      setStatus(
+        'servicesEditor',
+        error.message,
+        false
+      );
       return;
     }
   }
-  setStatus('servicesEditor','Services saved.');
+
+  setStatus(
+    'servicesEditor',
+    'Services saved.'
+  );
 };
+
 $('addGallery').onclick = () => {
   const box = document.createElement('div');
+
   box.className = 'list-item gallery-edit';
+
   box.innerHTML = `
     <div class="file-row">
+
       <div class="field">
         <label>Caption</label>
-        <input data-k="caption" value="New project">
+        <input
+          data-k="caption"
+          value="New project"
+        >
       </div>
+
       <div class="field">
         <label>Order</label>
         <input
@@ -348,11 +498,18 @@ $('addGallery').onclick = () => {
           value="${document.querySelectorAll('.gallery-edit').length + 1}"
         >
       </div>
+
     </div>
+
     <div class="field" style="margin-top:10px">
       <label>Image</label>
-      <input type="file" accept="image/*" data-file>
+      <input
+        type="file"
+        accept="image/*"
+        data-file
+      >
     </div>
+
     <div class="field" style="margin-top:10px">
       <label>Published</label>
       <select data-k="published">
@@ -361,13 +518,18 @@ $('addGallery').onclick = () => {
       </select>
     </div>
   `;
+
   $('galleryEditor').appendChild(box);
 };
+
 async function uploadFile(file) {
   const safe = file.name
     .toLowerCase()
     .replace(/[^a-z0-9._-]/g,'-');
-  const path = `${user.id}/${Date.now()}-${safe}`;
+
+  const path =
+    `${user.id}/${Date.now()}-${safe}`;
+
   const { error } = await sb
     .storage
     .from('site-images')
@@ -379,33 +541,59 @@ async function uploadFile(file) {
         contentType:file.type
       }
     );
-  if (error) throw error;
+
+  if (error) {
+    throw error;
+  }
+
   const { data } = sb
     .storage
     .from('site-images')
     .getPublicUrl(path);
+
   return data.publicUrl;
 }
+
 $('saveGallery').onclick = async () => {
-  const rows = [...document.querySelectorAll('.gallery-edit')];
-  await sb.from('gallery').delete().neq('id',0);
+  if (!user) {
+    showLogin();
+    return;
+  }
+
+  const rows =
+    [...document.querySelectorAll('.gallery-edit')];
+
+  await sb
+    .from('gallery')
+    .delete()
+    .neq('id',0);
+
   for (const row of rows) {
+
     const get = k =>
       row.querySelector(`[data-k="${k}"]`).value;
+
     let url =
       row.querySelector('[data-old-url]')
         ?.dataset.oldUrl || '';
+
     const file =
       row.querySelector('[data-file]')
         ?.files?.[0];
+
     if (file) {
       try {
         url = await uploadFile(file);
       } catch (e) {
-        setStatus('galleryEditor',e.message,false);
+        setStatus(
+          'galleryEditor',
+          e.message,
+          false
+        );
         return;
       }
     }
+
     if (!url) {
       setStatus(
         'galleryEditor',
@@ -414,6 +602,7 @@ $('saveGallery').onclick = async () => {
       );
       return;
     }
+
     const { error } = await sb
       .from('gallery')
       .insert({
@@ -422,19 +611,42 @@ $('saveGallery').onclick = async () => {
         sort_order:Number(get('sort_order')),
         published:get('published') === 'true'
       });
+
     if (error) {
-      setStatus('galleryEditor',e.message,false);
+      setStatus(
+        'galleryEditor',
+        error.message,
+        false
+      );
       return;
     }
   }
-  setStatus('galleryEditor','Gallery saved.');
+
+  setStatus(
+    'galleryEditor',
+    'Gallery saved.'
+  );
 };
+
 $('saveReviews').onclick = async () => {
-  const rows = [...document.querySelectorAll('.review-edit')];
-  await sb.from('reviews').delete().neq('id',0);
+  if (!user) {
+    showLogin();
+    return;
+  }
+
+  const rows =
+    [...document.querySelectorAll('.review-edit')];
+
+  await sb
+    .from('reviews')
+    .delete()
+    .neq('id',0);
+
   for (const row of rows) {
+
     const get = k =>
       row.querySelector(`[data-k="${k}"]`).value;
+
     const { error } = await sb
       .from('reviews')
       .insert({
@@ -444,11 +656,22 @@ $('saveReviews').onclick = async () => {
         sort_order:rows.indexOf(row) + 1,
         published:get('published') === 'true'
       });
+
     if (error) {
-      setStatus('reviewsEditor',error.message,false);
+      setStatus(
+        'reviewsEditor',
+        error.message,
+        false
+      );
       return;
     }
   }
-  setStatus('reviewsEditor','Reviews saved.');
+
+  setStatus(
+    'reviewsEditor',
+    'Reviews saved.'
+  );
 };
+
+// Start authentication check.
 check();
