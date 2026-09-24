@@ -42,7 +42,9 @@ function showLogin(message = '', ok = true) {
   }
 }
 
-function showSetup(message = 'Supabase is not connected. Check config.js and make sure the Supabase library loaded.') {
+function showSetup(
+  message = 'Supabase is not connected. Check config.js and make sure the Supabase library loaded.'
+) {
   const login = $('login');
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
@@ -68,8 +70,7 @@ function showSetup(message = 'Supabase is not connected. Check config.js and mak
 
 function showDashboard() {
   /*
-    Extra safety:
-    The dashboard is ONLY shown when a verified
+    The dashboard is only shown when a verified,
     authorized Supabase user exists.
   */
 
@@ -113,40 +114,43 @@ function setStatus(id, msg, ok = true) {
 const defaultServices = [
   {
     title: 'Lawn Mowing',
-    description: 'Reliable lawn mowing to keep your property looking clean and maintained.',
+    description:
+      'Reliable lawn mowing to keep your property looking clean and maintained.',
     sort_order: 1
   },
   {
     title: 'Edging',
-    description: 'Clean, sharp edges along sidewalks, driveways, and lawn borders.',
+    description:
+      'Clean, sharp edges along sidewalks, driveways, and lawn borders.',
     sort_order: 2
   },
   {
     title: 'Weed Whacking',
-    description: 'Grass and weed trimming around areas a mower cannot reach.',
+    description:
+      'Grass and weed trimming around areas a mower cannot reach.',
     sort_order: 3
   },
   {
     title: 'Gutter Cleaning',
-    description: 'Removal of leaves and debris from residential gutters.',
+    description:
+      'Removal of leaves and debris from residential gutters.',
     sort_order: 4
   },
   {
     title: 'Equipment Repairs',
-    description: 'Equipment repair and maintenance services.',
+    description:
+      'Equipment repair and maintenance services.',
     sort_order: 5
   }
 ];
 
-const defaultReviews = [
-  {
-    name: 'Customer',
-    rating: 5,
-    text: 'Great service!',
-    sort_order: 1,
-    published: true
-  }
-];
+/*
+  No fake/default reviews.
+  If there are no real reviews in Supabase,
+  the admin editor will simply be empty.
+*/
+
+const defaultReviews = [];
 
 /* -----------------------------
    SUPABASE SETUP
@@ -161,6 +165,7 @@ function initializeSupabase() {
     showSetup(
       'config.js is missing the Supabase URL, Supabase publishable/anon key, or OWNER_EMAIL.'
     );
+
     return false;
   }
 
@@ -168,6 +173,7 @@ function initializeSupabase() {
     showSetup(
       'The Supabase library did not load. Check your internet connection and make sure the Supabase script is above admin.js in admin.html.'
     );
+
     return false;
   }
 
@@ -179,11 +185,39 @@ function initializeSupabase() {
 
     return true;
   } catch (error) {
-    showSetup(
-      'Supabase could not be initialized: ' + error.message
+    console.error(
+      'Supabase initialization error:',
+      error
     );
+
+    showSetup(
+      'Supabase could not be initialized: ' +
+      (error.message || 'Unknown error')
+    );
+
     return false;
   }
+}
+
+/* -----------------------------
+   OWNER CHECK
+----------------------------- */
+
+function isOwner(u) {
+  if (!u || !u.email) {
+    return false;
+  }
+
+  const signedInEmail =
+    u.email.trim().toLowerCase();
+
+  const ownerEmail =
+    (C.OWNER_EMAIL || '').trim().toLowerCase();
+
+  return (
+    ownerEmail &&
+    signedInEmail === ownerEmail
+  );
 }
 
 /* -----------------------------
@@ -191,18 +225,20 @@ function initializeSupabase() {
 ----------------------------- */
 
 async function signIn() {
-  const status = $('loginStatus');
-
   try {
     if (!sb) {
       showSetup(
         'Supabase is not connected. Check config.js and make sure the Supabase library loaded.'
       );
+
       return;
     }
 
-    const email = $('emailInput')?.value.trim() || '';
-    const password = $('passwordInput')?.value || '';
+    const email =
+      $('emailInput')?.value.trim() || '';
+
+    const password =
+      $('passwordInput')?.value || '';
 
     if (!email || !password) {
       showLogin();
@@ -219,7 +255,10 @@ async function signIn() {
     const ownerEmail =
       (C.OWNER_EMAIL || '').trim().toLowerCase();
 
-    if (email.toLowerCase() !== ownerEmail) {
+    if (
+      !ownerEmail ||
+      email.toLowerCase() !== ownerEmail
+    ) {
       showLogin();
 
       setStatus(
@@ -233,19 +272,23 @@ async function signIn() {
 
     setStatus(
       'loginStatus',
-      'Signing in...'
+      'Signing in...',
+      true
     );
 
-    const result = await sb.auth.signInWithPassword({
-      email: email,
-      password: password
+    const {
+      data,
+      error
+    } = await sb.auth.signInWithPassword({
+      email,
+      password
     });
 
-    const data = result.data;
-    const error = result.error;
-
     if (error) {
-      console.error('Supabase sign-in error:', error);
+      console.error(
+        'Supabase sign-in error:',
+        error
+      );
 
       showLogin();
 
@@ -258,7 +301,7 @@ async function signIn() {
       return;
     }
 
-    if (!data || !data.user) {
+    if (!data?.user) {
       showLogin();
 
       setStatus(
@@ -273,38 +316,69 @@ async function signIn() {
     await handleUser(data.user);
 
   } catch (error) {
-    console.error('Unexpected sign-in error:', error);
+    console.error(
+      'Unexpected sign-in error:',
+      error
+    );
 
     showLogin();
 
     setStatus(
       'loginStatus',
-      'Login error: ' + (error.message || 'Unknown error'),
+      'Login error: ' +
+      (error.message || 'Unknown error'),
       false
     );
   }
 }
-async function signOut() {
-  if (!sb) {
-    showLogin();
-    return;
-  }
 
+async function signOut() {
   user = null;
 
   /*
-    Hide dashboard immediately before contacting Supabase.
-    This prevents the settings from remaining visible.
+    Hide the dashboard immediately.
   */
   showLogin();
 
-  await sb.auth.signOut();
+  if (!sb) {
+    setStatus(
+      'loginStatus',
+      'You have been signed out.',
+      true
+    );
 
-  setStatus(
-    'loginStatus',
-    'You have been signed out.',
-    true
-  );
+    return;
+  }
+
+  try {
+    const { error } =
+      await sb.auth.signOut();
+
+    if (error) {
+      console.error(
+        'Sign-out error:',
+        error
+      );
+    }
+
+    setStatus(
+      'loginStatus',
+      'You have been signed out.',
+      true
+    );
+
+  } catch (error) {
+    console.error(
+      'Unexpected sign-out error:',
+      error
+    );
+
+    setStatus(
+      'loginStatus',
+      'You have been signed out.',
+      true
+    );
+  }
 }
 
 async function handleUser(u) {
@@ -314,20 +388,21 @@ async function handleUser(u) {
     return;
   }
 
-  const signedInEmail =
-    (u.email || '').trim().toLowerCase();
-
-  const ownerEmail =
-    (C.OWNER_EMAIL || '').trim().toLowerCase();
-
-  if (
-    !ownerEmail ||
-    !signedInEmail ||
-    signedInEmail !== ownerEmail
-  ) {
+  /*
+    Check the authenticated Supabase user
+    against the owner email.
+  */
+  if (!isOwner(u)) {
     user = null;
 
-    await sb.auth.signOut();
+    try {
+      await sb.auth.signOut();
+    } catch (error) {
+      console.error(
+        'Could not sign out unauthorized user:',
+        error
+      );
+    }
 
     showLogin();
 
@@ -356,7 +431,8 @@ async function handleUser(u) {
 
 async function check() {
   /*
-    ALWAYS hide the dashboard when the page first loads.
+    ALWAYS hide the dashboard while
+    the authentication state is checked.
   */
   user = null;
   showLogin();
@@ -366,41 +442,91 @@ async function check() {
   }
 
   /*
-    Register the auth listener.
+    Listen for future authentication changes.
   */
-  sb.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
-      setTimeout(() => {
-        handleUser(session.user);
-      }, 0);
+  sb.auth.onAuthStateChange(
+    (event, session) => {
+
+      if (
+        event === 'SIGNED_IN' &&
+        session?.user
+      ) {
+        /*
+          Use a timeout so Supabase can finish
+          updating its internal session state.
+        */
+        setTimeout(() => {
+          handleUser(session.user);
+        }, 0);
+
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        user = null;
+        showLogin();
+      }
+    }
+  );
+
+  /*
+    IMPORTANT:
+    We do NOT sign out here.
+
+    Supabase can keep the authenticated session
+    after a page refresh. We retrieve that session
+    and verify the user before showing the dashboard.
+  */
+  try {
+    const {
+      data,
+      error
+    } = await sb.auth.getSession();
+
+    if (error) {
+      console.error(
+        'Could not retrieve Supabase session:',
+        error
+      );
+
+      user = null;
+      showLogin();
+
+      setStatus(
+        'loginStatus',
+        'Could not check your login session.',
+        false
+      );
 
       return;
     }
 
-    if (event === 'SIGNED_OUT') {
+    const sessionUser =
+      data?.session?.user || null;
+
+    if (!sessionUser) {
       user = null;
       showLogin();
+      return;
     }
-  });
 
-  /*
-    Clear any existing session.
+    await handleUser(sessionUser);
 
-    This means visiting admin.html starts at the
-    owner sign-in screen instead of automatically
-    displaying the dashboard.
-  */
-  try {
-    await sb.auth.signOut();
   } catch (error) {
     console.error(
-      'Could not clear previous session:',
+      'Unexpected session check error:',
       error
     );
-  }
 
-  user = null;
-  showLogin();
+    user = null;
+    showLogin();
+
+    setStatus(
+      'loginStatus',
+      'Could not check your login session.',
+      false
+    );
+  }
 }
 
 /* -----------------------------
@@ -413,66 +539,142 @@ async function loadAll() {
     return;
   }
 
-  const [
-    { data: services },
-    { data: gallery },
-    { data: reviews },
-    { data: settings }
-  ] = await Promise.all([
-    sb
-      .from('services')
-      .select('*')
-      .order('sort_order'),
+  try {
+    const [
+      servicesResult,
+      galleryResult,
+      reviewsResult,
+      settingsResult
+    ] = await Promise.all([
+      sb
+        .from('services')
+        .select('*')
+        .order('sort_order'),
 
-    sb
-      .from('gallery')
-      .select('*')
-      .order('sort_order'),
+      sb
+        .from('gallery')
+        .select('*')
+        .order('sort_order'),
 
-    sb
-      .from('reviews')
-      .select('*')
-      .order('sort_order'),
+      sb
+        .from('reviews')
+        .select('*')
+        .order('sort_order'),
 
-    sb
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-  ]);
+      sb
+        .from('site_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle()
+    ]);
 
-  if (!user) {
-    showLogin();
-    return;
+    /*
+      If the session disappeared while loading,
+      immediately hide the dashboard.
+    */
+    if (!user) {
+      showLogin();
+      return;
+    }
+
+    if (servicesResult.error) {
+      console.error(
+        'Services load error:',
+        servicesResult.error
+      );
+    }
+
+    if (galleryResult.error) {
+      console.error(
+        'Gallery load error:',
+        galleryResult.error
+      );
+    }
+
+    if (reviewsResult.error) {
+      console.error(
+        'Reviews load error:',
+        reviewsResult.error
+      );
+    }
+
+    if (settingsResult.error) {
+      console.error(
+        'Settings load error:',
+        settingsResult.error
+      );
+    }
+
+    const services =
+      servicesResult.data || [];
+
+    const gallery =
+      galleryResult.data || [];
+
+    const reviews =
+      reviewsResult.data || [];
+
+    const settings =
+      settingsResult.data || null;
+
+    renderServices(
+      services.length
+        ? services
+        : defaultServices
+    );
+
+    renderGallery(gallery);
+
+    renderReviews(
+      reviews.length
+        ? reviews
+        : defaultReviews
+    );
+
+    const googleUrl =
+      $('googleUrl');
+
+    if (googleUrl) {
+      googleUrl.value =
+        settings?.google_review_url ||
+        C.GOOGLE_REVIEW_URL ||
+        '';
+    }
+
+    const leaveReviewUrl =
+      $('leaveReviewUrl');
+
+    if (leaveReviewUrl) {
+      leaveReviewUrl.value =
+        settings?.leave_review_url ||
+        C.LEAVE_REVIEW_URL ||
+        '';
+    }
+
+    const areaText =
+      $('areaText');
+
+    if (areaText) {
+      areaText.value =
+        settings?.service_area_text ||
+        'Pairline Mowing serves Port Huron, Michigan and surrounding areas. Contact us to ask whether your address is within our service area.';
+    }
+
+  } catch (error) {
+    console.error(
+      'Unexpected load error:',
+      error
+    );
+
+    if (user) {
+      setStatus(
+        'settingsStatus',
+        'Could not load all dashboard data: ' +
+        (error.message || 'Unknown error'),
+        false
+      );
+    }
   }
-
-  renderServices(
-    services && services.length
-      ? services
-      : defaultServices
-  );
-
-  renderGallery(gallery || []);
-
-  renderReviews(
-    reviews && reviews.length
-      ? reviews
-      : defaultReviews
-  );
-
-  $('googleUrl').value =
-    settings?.google_review_url ||
-    C.GOOGLE_REVIEW_URL ||
-    '';
-
-  $('leaveReviewUrl').value =
-    settings?.leave_review_url ||
-    C.LEAVE_REVIEW_URL ||
-    'https://g.page/r/CVTTVOFnIt7jEAE/review';
-
-  $('areaText').value =
-    settings?.service_area_text ||
-    'Pairline Mowing serves Port Huron, Michigan and surrounding areas. Contact us to ask whether your address is within our service area.';
 }
 
 /* -----------------------------
@@ -480,43 +682,60 @@ async function loadAll() {
 ----------------------------- */
 
 function renderServices(items) {
-  const box = $('servicesEditor');
+  const box =
+    $('servicesEditor');
 
   if (!box) return;
 
-  box.innerHTML = items.map((item, i) => `
-    <div class="admin-card">
-      <div class="admin-grid">
+  box.innerHTML =
+    items.map((item, i) => `
+      <div class="admin-card">
 
-        <div class="field">
-          <label>Service name</label>
-          <input
-            data-service-title="${i}"
-            value="${esc(item.title || '')}">
-        </div>
+        <div class="admin-grid">
 
-        <div class="field">
-          <label>Sort order</label>
-          <input
-            type="number"
-            data-service-sort="${i}"
-            value="${Number(item.sort_order || i + 1)}">
-        </div>
+          <div class="field">
+            <label>Service name</label>
 
-        <div class="field full">
-          <label>Description</label>
-          <textarea data-service-description="${i}">${esc(item.description || '')}</textarea>
+            <input
+              data-service-title="${i}"
+              value="${esc(item.title || '')}">
+          </div>
+
+          <div class="field">
+            <label>Sort order</label>
+
+            <input
+              type="number"
+              data-service-sort="${i}"
+              value="${Number(
+                item.sort_order || i + 1
+              )}">
+          </div>
+
+          <div class="field full">
+            <label>Description</label>
+
+            <textarea
+              data-service-description="${i}">${esc(
+                item.description || ''
+              )}</textarea>
+          </div>
+
         </div>
 
       </div>
-    </div>
-  `).join('');
+    `).join('');
 }
 
 function collectServices() {
-  return [...document.querySelectorAll('[data-service-title]')]
+  return [
+    ...document.querySelectorAll(
+      '[data-service-title]'
+    )
+  ]
     .map((input, i) => ({
-      title: input.value.trim(),
+      title:
+        input.value.trim(),
 
       description:
         document.querySelector(
@@ -539,99 +758,201 @@ async function saveServices() {
     return;
   }
 
-  const services = collectServices();
+  const services =
+    collectServices();
 
-  const { error } = await sb
-    .from('services')
-    .delete()
-    .neq('id', 0);
+  try {
+    const {
+      error: deleteError
+    } = await sb
+      .from('services')
+      .delete()
+      .neq('id', 0);
 
-  if (error) {
-    setStatus(
-      'servicesEditor',
-      error.message,
-      false
-    );
-    return;
-  }
+    if (deleteError) {
+      console.error(
+        'Services delete error:',
+        deleteError
+      );
 
-  if (services.length) {
-    const { error: insertError } =
-      await sb
+      setStatus(
+        'servicesEditor',
+        deleteError.message,
+        false
+      );
+
+      return;
+    }
+
+    if (services.length) {
+      const {
+        error: insertError
+      } = await sb
         .from('services')
         .insert(services);
 
-    if (insertError) {
-      setStatus(
-        'servicesEditor',
-        insertError.message,
-        false
-      );
-      return;
+      if (insertError) {
+        console.error(
+          'Services insert error:',
+          insertError
+        );
+
+        setStatus(
+          'servicesEditor',
+          insertError.message,
+          false
+        );
+
+        return;
+      }
     }
+
+    setStatus(
+      'servicesEditor',
+      'Services saved.',
+      true
+    );
+
+    await loadAll();
+
+  } catch (error) {
+    console.error(
+      'Unexpected services save error:',
+      error
+    );
+
+    setStatus(
+      'servicesEditor',
+      error.message || 'Could not save services.',
+      false
+    );
   }
-
-  setStatus(
-    'servicesEditor',
-    'Services saved.',
-    true
-  );
-
-  await loadAll();
 }
 
 /* -----------------------------
    GALLERY
 ----------------------------- */
 
+const GALLERY_BUCKET =
+  'SITE-IMAGES';
+
 function renderGallery(items) {
-  const box = $('galleryEditor');
+  const box =
+    $('galleryEditor');
 
   if (!box) return;
 
-  box.innerHTML = items.map((item, i) => `
-    <div class="admin-card">
-      <div class="admin-grid">
+  box.innerHTML =
+    items.map((item, i) => {
 
-        <div class="field">
-          <label>Title</label>
-          <input
-            data-gallery-title="${i}"
-            value="${esc(item.title || '')}">
+      const imageUrl =
+        item.image_url ||
+        item.url ||
+        '';
+
+      return `
+        <div class="admin-card">
+
+          <div class="admin-grid">
+
+            <div class="field">
+              <label>Title</label>
+
+              <input
+                data-gallery-title="${i}"
+                value="${esc(
+                  item.title || ''
+                )}">
+            </div>
+
+            <div class="field">
+              <label>Sort order</label>
+
+              <input
+                type="number"
+                data-gallery-sort="${i}"
+                value="${Number(
+                  item.sort_order || i + 1
+                )}">
+            </div>
+
+            <div class="field full">
+              <label>Image</label>
+
+              ${
+                imageUrl
+                  ? `
+                    <div style="margin-bottom:10px;">
+                      <img
+                        src="${esc(imageUrl)}"
+                        alt="${esc(
+                          item.title ||
+                          'Gallery image'
+                        )}"
+                        style="
+                          display:block;
+                          width:100%;
+                          max-width:320px;
+                          max-height:220px;
+                          object-fit:cover;
+                          border-radius:10px;
+                        ">
+                    </div>
+                  `
+                  : ''
+              }
+
+              <input
+                type="file"
+                accept="image/*"
+                data-gallery-file="${i}">
+
+              <input
+                type="hidden"
+                data-gallery-url="${i}"
+                value="${esc(imageUrl)}">
+
+              <button
+                type="button"
+                data-gallery-upload="${i}"
+                style="margin-top:8px;">
+                Upload Image
+              </button>
+
+              <div
+                data-gallery-status="${i}"
+                style="margin-top:6px;">
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
+      `;
+    }).join('');
 
-        <div class="field">
-          <label>Sort order</label>
-          <input
-            type="number"
-            data-gallery-sort="${i}"
-            value="${Number(item.sort_order || i + 1)}">
-        </div>
-
-        <div class="field full">
-          <label>Image URL</label>
-          <input
-            data-gallery-url="${i}"
-            type="url"
-            value="${esc(item.image_url || item.url || '')}">
-        </div>
-
-      </div>
-    </div>
-  `).join('');
+  items.forEach((item, i) => {
+    $(`galleryEditor`)
+      ?.querySelector(
+        `[data-gallery-upload="${i}"]`
+      )
+      ?.addEventListener(
+        'click',
+        () => uploadGalleryImage(i)
+      );
+  });
 }
 
-async function saveGallery() {
-  if (!sb || !user) {
-    showLogin();
-    return;
-  }
-
-  const items = [
-    ...document.querySelectorAll('[data-gallery-title]')
+function collectGallery() {
+  return [
+    ...document.querySelectorAll(
+      '[data-gallery-title]'
+    )
   ]
     .map((input, i) => ({
-      title: input.value.trim(),
+      title:
+        input.value.trim(),
 
       image_url:
         document.querySelector(
@@ -646,44 +967,316 @@ async function saveGallery() {
         ) || i + 1
     }))
     .filter(x => x.image_url);
+}
 
-  const { error } = await sb
-    .from('gallery')
-    .delete()
-    .neq('id', 0);
-
-  if (error) {
-    setStatus(
-      'galleryEditor',
-      error.message,
-      false
-    );
+async function uploadGalleryImage(index) {
+  if (!sb || !user) {
+    showLogin();
     return;
   }
 
-  if (items.length) {
-    const { error: insertError } =
-      await sb
+  const fileInput =
+    document.querySelector(
+      `[data-gallery-file="${index}"]`
+    );
+
+  const status =
+    document.querySelector(
+      `[data-gallery-status="${index}"]`
+    );
+
+  if (!fileInput?.files?.length) {
+    if (status) {
+      status.textContent =
+        'Choose an image first.';
+
+      status.style.color =
+        '#9d2c2c';
+    }
+
+    return;
+  }
+
+  const file =
+    fileInput.files[0];
+
+  if (!file.type.startsWith('image/')) {
+    if (status) {
+      status.textContent =
+        'Please choose an image file.';
+
+      status.style.color =
+        '#9d2c2c';
+    }
+
+    return;
+  }
+
+  /*
+    Basic file-size protection.
+    10 MB maximum.
+  */
+  const MAX_FILE_SIZE =
+    10 * 1024 * 1024;
+
+  if (file.size > MAX_FILE_SIZE) {
+    if (status) {
+      status.textContent =
+        'Image is too large. Maximum size is 10 MB.';
+
+      status.style.color =
+        '#9d2c2c';
+    }
+
+    return;
+  }
+
+  if (status) {
+    status.textContent =
+      'Uploading...';
+
+    status.style.color = '';
+  }
+
+  try {
+    const extension =
+      file.name.includes('.')
+        ? file.name
+            .split('.')
+            .pop()
+            .toLowerCase()
+        : 'jpg';
+
+    const fileName =
+      `gallery/${crypto.randomUUID()}.${extension}`;
+
+    const {
+      error: uploadError
+    } = await sb.storage
+      .from(GALLERY_BUCKET)
+      .upload(
+        fileName,
+        file,
+        {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        }
+      );
+
+    if (uploadError) {
+      console.error(
+        'Gallery upload error:',
+        uploadError
+      );
+
+      if (status) {
+        status.textContent =
+          'Upload failed: ' +
+          uploadError.message;
+
+        status.style.color =
+          '#9d2c2c';
+      }
+
+      return;
+    }
+
+    const {
+      data
+    } = sb.storage
+      .from(GALLERY_BUCKET)
+      .getPublicUrl(fileName);
+
+    const publicUrl =
+      data?.publicUrl || '';
+
+    if (!publicUrl) {
+      if (status) {
+        status.textContent =
+          'Upload worked, but the image URL could not be created.';
+
+        status.style.color =
+          '#9d2c2c';
+      }
+
+      return;
+    }
+
+    const urlInput =
+      document.querySelector(
+        `[data-gallery-url="${index}"]`
+      );
+
+    if (urlInput) {
+      urlInput.value =
+        publicUrl;
+    }
+
+    if (status) {
+      status.textContent =
+        'Image uploaded successfully.';
+
+      status.style.color = '';
+    }
+
+    /*
+      Update the preview without rebuilding
+      the entire gallery editor.
+    */
+    const card =
+      document.querySelector(
+        `[data-gallery-file="${index}"]`
+      )?.closest(
+        '.admin-card'
+      );
+
+    if (card) {
+      const oldPreview =
+        card.querySelector('img');
+
+      if (oldPreview) {
+        oldPreview.src =
+          publicUrl;
+
+      } else {
+        const preview =
+          document.createElement('img');
+
+        preview.src =
+          publicUrl;
+
+        preview.alt =
+          'Gallery image';
+
+        preview.style.display =
+          'block';
+
+        preview.style.width =
+          '100%';
+
+        preview.style.maxWidth =
+          '320px';
+
+        preview.style.maxHeight =
+          '220px';
+
+        preview.style.objectFit =
+          'cover';
+
+        preview.style.borderRadius =
+          '10px';
+
+        preview.style.marginBottom =
+          '10px';
+
+        const fileField =
+          card.querySelector(
+            `[data-gallery-file="${index}"]`
+          );
+
+        fileField?.parentElement
+          ?.insertBefore(
+            preview,
+            fileField
+          );
+      }
+    }
+
+  } catch (error) {
+    console.error(
+      'Unexpected gallery upload error:',
+      error
+    );
+
+    if (status) {
+      status.textContent =
+        'Upload error: ' +
+        (error.message ||
+          'Unknown error');
+
+      status.style.color =
+        '#9d2c2c';
+    }
+  }
+}
+
+async function saveGallery() {
+  if (!sb || !user) {
+    showLogin();
+    return;
+  }
+
+  const items =
+    collectGallery();
+
+  try {
+    const {
+      error: deleteError
+    } = await sb
+      .from('gallery')
+      .delete()
+      .neq('id', 0);
+
+    if (deleteError) {
+      console.error(
+        'Gallery delete error:',
+        deleteError
+      );
+
+      setStatus(
+        'galleryEditor',
+        deleteError.message,
+        false
+      );
+
+      return;
+    }
+
+    if (items.length) {
+      const {
+        error: insertError
+      } = await sb
         .from('gallery')
         .insert(items);
 
-    if (insertError) {
-      setStatus(
-        'galleryEditor',
-        insertError.message,
-        false
-      );
-      return;
+      if (insertError) {
+        console.error(
+          'Gallery insert error:',
+          insertError
+        );
+
+        setStatus(
+          'galleryEditor',
+          insertError.message,
+          false
+        );
+
+        return;
+      }
     }
+
+    setStatus(
+      'galleryEditor',
+      'Gallery saved.',
+      true
+    );
+
+    await loadAll();
+
+  } catch (error) {
+    console.error(
+      'Unexpected gallery save error:',
+      error
+    );
+
+    setStatus(
+      'galleryEditor',
+      error.message ||
+      'Could not save gallery.',
+      false
+    );
   }
-
-  setStatus(
-    'galleryEditor',
-    'Gallery saved.',
-    true
-  );
-
-  await loadAll();
 }
 
 /* -----------------------------
@@ -691,67 +1284,115 @@ async function saveGallery() {
 ----------------------------- */
 
 function renderReviews(items) {
-  const box = $('reviewsEditor');
+  const box =
+    $('reviewsEditor');
 
   if (!box) return;
 
-  box.innerHTML = items.map((item, i) => `
-    <div class="admin-card">
-      <div class="admin-grid">
+  if (!items.length) {
+    box.innerHTML = `
+      <div class="admin-card">
+        <p>
+          No reviews have been added yet.
+        </p>
+      </div>
+    `;
 
-        <div class="field">
-          <label>Customer name</label>
-          <input
-            data-review-name="${i}"
-            value="${esc(item.name || '')}">
-        </div>
+    return;
+  }
 
-        <div class="field">
-          <label>Rating</label>
-          <select data-review-rating="${i}">
-            ${[1, 2, 3, 4, 5].map(n => `
+  box.innerHTML =
+    items.map((item, i) => `
+      <div class="admin-card">
+
+        <div class="admin-grid">
+
+          <div class="field">
+            <label>Customer name</label>
+
+            <input
+              data-review-name="${i}"
+              value="${esc(
+                item.name || ''
+              )}">
+          </div>
+
+          <div class="field">
+            <label>Rating</label>
+
+            <select
+              data-review-rating="${i}">
+
+              ${[1, 2, 3, 4, 5]
+                .map(n => `
+                  <option
+                    value="${n}"
+                    ${
+                      Number(item.rating) === n
+                        ? 'selected'
+                        : ''
+                    }>
+                    ${n}
+                  </option>
+                `)
+                .join('')}
+
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>Review</label>
+
+            <textarea
+              data-review-text="${i}">${esc(
+                item.text || ''
+              )}</textarea>
+          </div>
+
+          <div class="field">
+            <label>Sort order</label>
+
+            <input
+              type="number"
+              data-review-sort="${i}"
+              value="${Number(
+                item.sort_order || i + 1
+              )}">
+          </div>
+
+          <div class="field">
+            <label>Published</label>
+
+            <select
+              data-review-published="${i}">
+
               <option
-                value="${n}"
-                ${Number(item.rating) === n ? 'selected' : ''}>
-                ${n}
+                value="true"
+                ${
+                  item.published !== false
+                    ? 'selected'
+                    : ''
+                }>
+                Yes
               </option>
-            `).join('')}
-          </select>
-        </div>
 
-        <div class="field full">
-          <label>Review</label>
-          <textarea data-review-text="${i}">${esc(item.text || '')}</textarea>
-        </div>
+              <option
+                value="false"
+                ${
+                  item.published === false
+                    ? 'selected'
+                    : ''
+                }>
+                No
+              </option>
 
-        <div class="field">
-          <label>Sort order</label>
-          <input
-            type="number"
-            data-review-sort="${i}"
-            value="${Number(item.sort_order || i + 1)}">
-        </div>
+            </select>
+          </div>
 
-        <div class="field">
-          <label>Published</label>
-          <select data-review-published="${i}">
-            <option
-              value="true"
-              ${item.published !== false ? 'selected' : ''}>
-              Yes
-            </option>
-
-            <option
-              value="false"
-              ${item.published === false ? 'selected' : ''}>
-              No
-            </option>
-          </select>
         </div>
 
       </div>
-    </div>
-  `).join('');
+    `).join('');
 }
 
 async function saveReviews() {
@@ -761,10 +1402,13 @@ async function saveReviews() {
   }
 
   const items = [
-    ...document.querySelectorAll('[data-review-name]')
+    ...document.querySelectorAll(
+      '[data-review-name]'
+    )
   ]
     .map((input, i) => ({
-      name: input.value.trim(),
+      name:
+        input.value.trim(),
 
       rating:
         Number(
@@ -792,43 +1436,73 @@ async function saveReviews() {
     }))
     .filter(x => x.text);
 
-  const { error } = await sb
-    .from('reviews')
-    .delete()
-    .neq('id', 0);
+  try {
+    const {
+      error: deleteError
+    } = await sb
+      .from('reviews')
+      .delete()
+      .neq('id', 0);
 
-  if (error) {
-    setStatus(
-      'reviewsEditor',
-      error.message,
-      false
-    );
-    return;
-  }
+    if (deleteError) {
+      console.error(
+        'Reviews delete error:',
+        deleteError
+      );
 
-  if (items.length) {
-    const { error: insertError } =
-      await sb
+      setStatus(
+        'reviewsEditor',
+        deleteError.message,
+        false
+      );
+
+      return;
+    }
+
+    if (items.length) {
+      const {
+        error: insertError
+      } = await sb
         .from('reviews')
         .insert(items);
 
-    if (insertError) {
-      setStatus(
-        'reviewsEditor',
-        insertError.message,
-        false
-      );
-      return;
+      if (insertError) {
+        console.error(
+          'Reviews insert error:',
+          insertError
+        );
+
+        setStatus(
+          'reviewsEditor',
+          insertError.message,
+          false
+        );
+
+        return;
+      }
     }
+
+    setStatus(
+      'reviewsEditor',
+      'Reviews saved.',
+      true
+    );
+
+    await loadAll();
+
+  } catch (error) {
+    console.error(
+      'Unexpected reviews save error:',
+      error
+    );
+
+    setStatus(
+      'reviewsEditor',
+      error.message ||
+      'Could not save reviews.',
+      false
+    );
   }
-
-  setStatus(
-    'reviewsEditor',
-    'Reviews saved.',
-    true
-  );
-
-  await loadAll();
 }
 
 /* -----------------------------
@@ -842,37 +1516,65 @@ async function saveSettings() {
   }
 
   const googleUrl =
-    $('googleUrl').value.trim();
+    $('googleUrl')?.value.trim() || '';
 
   const leaveReviewUrl =
-    $('leaveReviewUrl').value.trim();
+    $('leaveReviewUrl')?.value.trim() || '';
 
   const areaText =
-    $('areaText').value.trim();
+    $('areaText')?.value.trim() || '';
 
-  const { error } = await sb
-    .from('site_settings')
-    .upsert({
-      id: 1,
-      google_review_url: googleUrl,
-      leave_review_url: leaveReviewUrl,
-      service_area_text: areaText
-    });
+  try {
+    const {
+      error
+    } = await sb
+      .from('site_settings')
+      .upsert({
+        id: 1,
+        google_review_url:
+          googleUrl,
 
-  if (error) {
+        leave_review_url:
+          leaveReviewUrl,
+
+        service_area_text:
+          areaText
+      });
+
+    if (error) {
+      console.error(
+        'Settings save error:',
+        error
+      );
+
+      setStatus(
+        'settingsStatus',
+        error.message,
+        false
+      );
+
+      return;
+    }
+
     setStatus(
       'settingsStatus',
-      error.message,
+      'Settings saved.',
+      true
+    );
+
+  } catch (error) {
+    console.error(
+      'Unexpected settings save error:',
+      error
+    );
+
+    setStatus(
+      'settingsStatus',
+      error.message ||
+      'Could not save settings.',
       false
     );
-    return;
   }
-
-  setStatus(
-    'settingsStatus',
-    'Settings saved.',
-    true
-  );
 }
 
 /* -----------------------------
@@ -917,12 +1619,14 @@ $('addService')?.addEventListener(
       return;
     }
 
-    const current = collectServices();
+    const current =
+      collectServices();
 
     current.push({
       title: '',
       description: '',
-      sort_order: current.length + 1
+      sort_order:
+        current.length + 1
     });
 
     renderServices(current);
@@ -942,7 +1646,8 @@ $('addGallery')?.addEventListener(
         '[data-gallery-title]'
       )
     ].map((input, i) => ({
-      title: input.value,
+      title:
+        input.value,
 
       image_url:
         document.querySelector(
@@ -960,7 +1665,8 @@ $('addGallery')?.addEventListener(
     current.push({
       title: '',
       image_url: '',
-      sort_order: current.length + 1
+      sort_order:
+        current.length + 1
     });
 
     renderGallery(current);
