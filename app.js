@@ -25,7 +25,10 @@ function escapeHtml(value=''){return String(value).replace(/[&<>'"]/g,c=>({'&':'
 function renderServices(items=DEFAULT_SERVICES){document.getElementById('servicesGrid').innerHTML=items.map((s,i)=>`<article class="service-card"><div class="service-number">${escapeHtml(s.number||String(i+1).padStart(2,'0'))}</div><h3>${escapeHtml(s.name)}</h3><p>${escapeHtml(s.description)}</p></article>`).join('');}
 function renderGallery(items=DEFAULT_GALLERY){const grid=document.getElementById('galleryGrid');grid.innerHTML=items.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(g=>`<figure class="gallery-card"><img loading="lazy" src="${escapeHtml(g.image_url)}" alt="${escapeHtml(g.caption||'Pairline Mowing project photo')}"><figcaption>${escapeHtml(g.caption||'Pairline Mowing project')}</figcaption></figure>`).join('');}
 function renderReviews(items=DEFAULT_REVIEWS){document.getElementById('reviewsGrid').innerHTML=items.map(r=>`<article class="review-card"><div class="stars" aria-label="5 out of 5 stars">★★★★★</div><h3>${escapeHtml(r.name)}</h3>${r.title?`<div class="review-source">${escapeHtml(r.title)}</div>`:''}<p>${escapeHtml(r.text)}</p></article>`).join('');}
-function updateGoogleLinks(url){if(!url)return;document.getElementById('googleReviewsBtn').href=url;document.getElementById('leaveReviewBtn').href=url;}
+function updateGoogleLinks(url){
+  if(url) document.getElementById('googleReviewsBtn').href=url;
+  document.getElementById('leaveReviewBtn').href='https://g.page/r/CVTTVOFnIt7jEAE/review';
+}
 async function loadSupabaseContent(){
   if(!supabaseClient)return;
   try{
