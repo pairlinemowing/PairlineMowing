@@ -36,7 +36,6 @@ function hideDashboard() {
 
   if (dashboard) {
     dashboard.hidden = true;
-    dashboard.classList.add('hidden');
   }
 }
 
@@ -45,13 +44,17 @@ function showLogin() {
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
 
-  if (login) login.hidden = false;
+  if (login) {
+    login.hidden = false;
+    login.style.display = '';
+  }
 
-  if (setup) setup.hidden = true;
+  if (setup) {
+    setup.hidden = true;
+  }
 
   if (dashboard) {
     dashboard.hidden = true;
-    dashboard.classList.add('hidden');
   }
 }
 
@@ -60,14 +63,17 @@ function showSetup() {
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
 
-  if (login) login.hidden = true;
+  if (login) {
+    login.hidden = true;
+  }
 
   if (dashboard) {
     dashboard.hidden = true;
-    dashboard.classList.add('hidden');
   }
 
-  if (setup) setup.hidden = false;
+  if (setup) {
+    setup.hidden = false;
+  }
 }
 
 function showDashboard() {
@@ -75,12 +81,16 @@ function showDashboard() {
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
 
-  if (login) login.hidden = true;
-  if (setup) setup.hidden = true;
+  if (login) {
+    login.hidden = true;
+  }
+
+  if (setup) {
+    setup.hidden = true;
+  }
 
   if (dashboard) {
     dashboard.hidden = false;
-    dashboard.classList.remove('hidden');
   }
 }
 
@@ -145,22 +155,31 @@ async function signIn() {
     return;
   }
 
-  const email = $('emailInput').value.trim();
-  const password = $('passwordInput').value;
+  const email = $('emailInput')?.value.trim();
+  const password = $('passwordInput')?.value;
 
   if (!email || !password) {
+    showLogin();
+
     setStatus(
       'loginStatus',
       'Enter your email and password.',
       false
     );
+
     return;
   }
 
-  const { error } = await sb.auth.signInWithPassword({
-    email,
-    password
-  });
+  setStatus(
+    'loginStatus',
+    'Signing in...'
+  );
+
+  const { data, error } =
+    await sb.auth.signInWithPassword({
+      email,
+      password
+    });
 
   if (error) {
     showLogin();
@@ -170,7 +189,11 @@ async function signIn() {
       error.message,
       false
     );
+
+    return;
   }
+
+  await handleUser(data.user);
 }
 
 async function signOut() {
@@ -202,13 +225,6 @@ async function handleUser(u) {
   const ownerEmail =
     (C.OWNER_EMAIL || '').trim().toLowerCase();
 
-  /*
-    IMPORTANT:
-    The dashboard is ONLY shown if the
-    authenticated Supabase user's email
-    exactly matches OWNER_EMAIL.
-  */
-
   if (
     !ownerEmail ||
     !signedInEmail ||
@@ -238,10 +254,11 @@ async function handleUser(u) {
 
 async function check() {
   /*
-    ALWAYS start with the dashboard hidden.
+    The login screen is ALWAYS shown first.
+    The dashboard stays hidden until authentication
+    has been checked and the email is authorized.
   */
 
-  hideDashboard();
   showLogin();
 
   if (!sb) {
@@ -266,7 +283,7 @@ async function check() {
     return;
   }
 
-  if (data && data.session) {
+  if (data?.session) {
     await handleUser(data.session.user);
   }
 
@@ -295,48 +312,16 @@ async function loadAll() {
   }
 
   const [
-    { data: s, error: serviceError },
-    { data: g, error: galleryError },
-    { data: r, error: reviewError },
-    { data: set, error: settingsError }
+    { data: s },
+    { data: g },
+    { data: r },
+    { data: set }
   ] = await Promise.all([
-    sb
-      .from('services')
-      .select('*')
-      .order('sort_order'),
-
-    sb
-      .from('gallery')
-      .select('*')
-      .order('sort_order'),
-
-    sb
-      .from('reviews')
-      .select('*')
-      .order('sort_order'),
-
-    sb
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
+    sb.from('services').select('*').order('sort_order'),
+    sb.from('gallery').select('*').order('sort_order'),
+    sb.from('reviews').select('*').order('sort_order'),
+    sb.from('site_settings').select('*').eq('id', 1).maybeSingle()
   ]);
-
-  if (serviceError) {
-    console.error(serviceError);
-  }
-
-  if (galleryError) {
-    console.error(galleryError);
-  }
-
-  if (reviewError) {
-    console.error(reviewError);
-  }
-
-  if (settingsError) {
-    console.error(settingsError);
-  }
 
   renderServices(
     s && s.length
@@ -444,9 +429,7 @@ async function saveServices() {
 
   if (services.length) {
     const { error: insertError } =
-      await sb
-        .from('services')
-        .insert(services);
+      await sb.from('services').insert(services);
 
     if (insertError) {
       setStatus(
@@ -543,9 +526,7 @@ async function saveGallery() {
 
   if (items.length) {
     const { error: insertError } =
-      await sb
-        .from('gallery')
-        .insert(items);
+      await sb.from('gallery').insert(items);
 
     if (insertError) {
       setStatus(
@@ -670,9 +651,7 @@ async function saveReviews() {
 
   if (items.length) {
     const { error: insertError } =
-      await sb
-        .from('reviews')
-        .insert(items);
+      await sb.from('reviews').insert(items);
 
     if (insertError) {
       setStatus(
