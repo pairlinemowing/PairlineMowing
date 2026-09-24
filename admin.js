@@ -1,19 +1,6 @@
 const C = window.PAIRLINE_CONFIG || {};
 
-const hasConfig = Boolean(
-  C.SUPABASE_URL &&
-  C.SUPABASE_ANON_KEY &&
-  C.OWNER_EMAIL &&
-  window.supabase
-);
-
-const sb = hasConfig
-  ? window.supabase.createClient(
-      C.SUPABASE_URL,
-      C.SUPABASE_ANON_KEY
-    )
-  : null;
-
+let sb = null;
 let user = null;
 
 const $ = id => document.getElementById(id);
@@ -31,14 +18,6 @@ function esc(v = '') {
    SCREEN CONTROL
 ----------------------------- */
 
-function hideDashboard() {
-  const dashboard = $('dashboard');
-
-  if (dashboard) {
-    dashboard.hidden = true;
-  }
-}
-
 function showLogin() {
   const login = $('login');
   const dashboard = $('dashboard');
@@ -46,33 +25,31 @@ function showLogin() {
 
   if (login) {
     login.hidden = false;
-    login.style.display = '';
+    login.style.display = 'block';
   }
 
-  if (setup) {
-    setup.hidden = true;
-  }
-
-  if (dashboard) {
-    dashboard.hidden = true;
-  }
+  if (setup) setup.hidden = true;
+  if (dashboard) dashboard.hidden = true;
 }
 
-function showSetup() {
+function showSetup(message = 'Supabase is not connected. Check config.js and make sure the Supabase library loaded.') {
   const login = $('login');
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
 
   if (login) {
-    login.hidden = true;
+    login.hidden = false;
+    login.style.display = 'block';
   }
 
-  if (dashboard) {
-    dashboard.hidden = true;
-  }
+  if (dashboard) dashboard.hidden = true;
 
   if (setup) {
     setup.hidden = false;
+    setup.innerHTML = `
+      <strong>Connection setup needed.</strong>
+      <p>${esc(message)}</p>
+    `;
   }
 }
 
@@ -81,17 +58,9 @@ function showDashboard() {
   const dashboard = $('dashboard');
   const setup = $('setupNotice');
 
-  if (login) {
-    login.hidden = true;
-  }
-
-  if (setup) {
-    setup.hidden = true;
-  }
-
-  if (dashboard) {
-    dashboard.hidden = false;
-  }
+  if (login) login.hidden = true;
+  if (setup) setup.hidden = true;
+  if (dashboard) dashboard.hidden = false;
 }
 
 function setStatus(id, msg, ok = true) {
@@ -146,6 +115,44 @@ const defaultReviews = [
 ];
 
 /* -----------------------------
+   SUPABASE SETUP
+----------------------------- */
+
+function initializeSupabase() {
+  if (
+    !C.SUPABASE_URL ||
+    !C.SUPABASE_ANON_KEY ||
+    !C.OWNER_EMAIL
+  ) {
+    showSetup(
+      'config.js is missing the Supabase URL, Supabase publishable/anon key, or OWNER_EMAIL.'
+    );
+    return false;
+  }
+
+  if (!window.supabase) {
+    showSetup(
+      'The Supabase library did not load. Check your internet connection and make sure the Supabase script is above admin.js in admin.html.'
+    );
+    return false;
+  }
+
+  try {
+    sb = window.supabase.createClient(
+      C.SUPABASE_URL,
+      C.SUPABASE_ANON_KEY
+    );
+
+    return true;
+  } catch (error) {
+    showSetup(
+      'Supabase could not be initialized: ' + error.message
+    );
+    return false;
+  }
+}
+
+/* -----------------------------
    AUTHENTICATION
 ----------------------------- */
 
@@ -170,10 +177,7 @@ async function signIn() {
     return;
   }
 
-  setStatus(
-    'loginStatus',
-    'Signing in...'
-  );
+  setStatus('loginStatus', 'Signing in...');
 
   const { data, error } =
     await sb.auth.signInWithPassword({
@@ -253,16 +257,9 @@ async function handleUser(u) {
 }
 
 async function check() {
-  /*
-    The login screen is ALWAYS shown first.
-    The dashboard stays hidden until authentication
-    has been checked and the email is authorized.
-  */
-
   showLogin();
 
-  if (!sb) {
-    showSetup();
+  if (!initializeSupabase()) {
     return;
   }
 
@@ -419,11 +416,7 @@ async function saveServices() {
     .neq('id', 0);
 
   if (error) {
-    setStatus(
-      'servicesEditor',
-      error.message,
-      false
-    );
+    setStatus('servicesEditor', error.message, false);
     return;
   }
 
@@ -432,20 +425,12 @@ async function saveServices() {
       await sb.from('services').insert(services);
 
     if (insertError) {
-      setStatus(
-        'servicesEditor',
-        insertError.message,
-        false
-      );
+      setStatus('servicesEditor', insertError.message, false);
       return;
     }
   }
 
-  setStatus(
-    'servicesEditor',
-    'Services saved.',
-    true
-  );
+  setStatus('servicesEditor', 'Services saved.', true);
 
   await loadAll();
 }
@@ -516,11 +501,7 @@ async function saveGallery() {
     .neq('id', 0);
 
   if (error) {
-    setStatus(
-      'galleryEditor',
-      error.message,
-      false
-    );
+    setStatus('galleryEditor', error.message, false);
     return;
   }
 
@@ -529,20 +510,12 @@ async function saveGallery() {
       await sb.from('gallery').insert(items);
 
     if (insertError) {
-      setStatus(
-        'galleryEditor',
-        insertError.message,
-        false
-      );
+      setStatus('galleryEditor', insertError.message, false);
       return;
     }
   }
 
-  setStatus(
-    'galleryEditor',
-    'Gallery saved.',
-    true
-  );
+  setStatus('galleryEditor', 'Gallery saved.', true);
 
   await loadAll();
 }
@@ -641,11 +614,7 @@ async function saveReviews() {
     .neq('id', 0);
 
   if (error) {
-    setStatus(
-      'reviewsEditor',
-      error.message,
-      false
-    );
+    setStatus('reviewsEditor', error.message, false);
     return;
   }
 
@@ -654,20 +623,12 @@ async function saveReviews() {
       await sb.from('reviews').insert(items);
 
     if (insertError) {
-      setStatus(
-        'reviewsEditor',
-        insertError.message,
-        false
-      );
+      setStatus('reviewsEditor', insertError.message, false);
       return;
     }
   }
 
-  setStatus(
-    'reviewsEditor',
-    'Reviews saved.',
-    true
-  );
+  setStatus('reviewsEditor', 'Reviews saved.', true);
 
   await loadAll();
 }
@@ -698,11 +659,7 @@ async function saveSettings() {
     });
 
   if (error) {
-    setStatus(
-      'settingsStatus',
-      error.message,
-      false
-    );
+    setStatus('settingsStatus', error.message, false);
     return;
   }
 
@@ -717,15 +674,9 @@ async function saveSettings() {
    BUTTONS
 ----------------------------- */
 
-$('signInBtn')?.addEventListener(
-  'click',
-  signIn
-);
+$('signInBtn')?.addEventListener('click', signIn);
 
-$('signOut')?.addEventListener(
-  'click',
-  signOut
-);
+$('signOut')?.addEventListener('click', signOut);
 
 $('saveSettings')?.addEventListener(
   'click',
@@ -765,20 +716,21 @@ $('addService')?.addEventListener(
 $('addGallery')?.addEventListener(
   'click',
   () => {
-    const current = [...document.querySelectorAll('[data-gallery-title]')]
-      .map((input, i) => ({
-        title: input.value,
-        image_url:
-          document.querySelector(
-            `[data-gallery-url="${i}"]`
-          )?.value || '',
-        sort_order:
-          Number(
+    const current =
+      [...document.querySelectorAll('[data-gallery-title]')]
+        .map((input, i) => ({
+          title: input.value,
+          image_url:
             document.querySelector(
-              `[data-gallery-sort="${i}"]`
-            )?.value
-          ) || i + 1
-      }));
+              `[data-gallery-url="${i}"]`
+            )?.value || '',
+          sort_order:
+            Number(
+              document.querySelector(
+                `[data-gallery-sort="${i}"]`
+              )?.value
+            ) || i + 1
+        }));
 
     current.push({
       title: '',
