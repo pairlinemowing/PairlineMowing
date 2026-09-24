@@ -191,58 +191,99 @@ function initializeSupabase() {
 ----------------------------- */
 
 async function signIn() {
-  if (!sb) {
-    showSetup();
-    return;
-  }
+  const status = $('loginStatus');
 
-  const email = $('emailInput')?.value.trim();
-  const password = $('passwordInput')?.value;
+  try {
+    if (!sb) {
+      showSetup(
+        'Supabase is not connected. Check config.js and make sure the Supabase library loaded.'
+      );
+      return;
+    }
 
-  if (!email || !password) {
-    showLogin();
+    const email = $('emailInput')?.value.trim() || '';
+    const password = $('passwordInput')?.value || '';
+
+    if (!email || !password) {
+      showLogin();
+
+      setStatus(
+        'loginStatus',
+        'Enter your email and password.',
+        false
+      );
+
+      return;
+    }
+
+    const ownerEmail =
+      (C.OWNER_EMAIL || '').trim().toLowerCase();
+
+    if (email.toLowerCase() !== ownerEmail) {
+      showLogin();
+
+      setStatus(
+        'loginStatus',
+        'That email is not authorized for the owner dashboard.',
+        false
+      );
+
+      return;
+    }
+
     setStatus(
       'loginStatus',
-      'Enter your email and password.',
-      false
+      'Signing in...'
     );
-    return;
-  }
 
-  const ownerEmail =
-    (C.OWNER_EMAIL || '').trim().toLowerCase();
-
-  if (email.toLowerCase() !== ownerEmail) {
-    showLogin();
-    setStatus(
-      'loginStatus',
-      'That email is not authorized for the owner dashboard.',
-      false
-    );
-    return;
-  }
-
-  setStatus('loginStatus', 'Signing in...');
-
-  const { data, error } =
-    await sb.auth.signInWithPassword({
-      email,
-      password
+    const result = await sb.auth.signInWithPassword({
+      email: email,
+      password: password
     });
 
-  if (error || !data?.user) {
+    const data = result.data;
+    const error = result.error;
+
+    if (error) {
+      console.error('Supabase sign-in error:', error);
+
+      showLogin();
+
+      setStatus(
+        'loginStatus',
+        'Sign-in failed: ' + error.message,
+        false
+      );
+
+      return;
+    }
+
+    if (!data || !data.user) {
+      showLogin();
+
+      setStatus(
+        'loginStatus',
+        'Sign-in did not return an authenticated user.',
+        false
+      );
+
+      return;
+    }
+
+    await handleUser(data.user);
+
+  } catch (error) {
+    console.error('Unexpected sign-in error:', error);
+
     showLogin();
+
     setStatus(
       'loginStatus',
-      'Incorrect email or password.',
+      'Login error: ' + (error.message || 'Unknown error'),
       false
     );
-    return;
   }
-
-  await handleUser(data.user);
 }
-
 async function signOut() {
   if (!sb) {
     showLogin();
