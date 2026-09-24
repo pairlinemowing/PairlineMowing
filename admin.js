@@ -27,17 +27,6 @@ async function signIn(){
     setStatus('loginStatus',error.message,false);
   }
 }
-    return;
-  }
-
-  if(data.session){
-    await handleUser(data.user);
-  }
-}
-async function check(){if(!sb){showSetup();return;}const {data:{session}}=await sb.auth.getSession();if(session) await handleUser(session.user);else $('login').classList.remove('hidden');sb.auth.onAuthStateChange(async(_e,s)=>{if(s)await handleUser(s.user);else {
-  $('dashboard').classList.add('hidden');
-  $('login').classList.remove('hidden');
-}
 async function handleUser(u){user=u;if((u.email||'').toLowerCase()!==C.OWNER_EMAIL.toLowerCase()){await sb.auth.signOut();$('login').classList.remove('hidden');setStatus('loginStatus','That Google account is not authorized for the owner dashboard.',false);return;}$('login').classList.add('hidden');$('dashboard').classList.remove('hidden');await loadAll();}
 async function loadAll(){const [{data:s},{data:g},{data:r},{data:set}]=await Promise.all([sb.from('services').select('*').order('sort_order'),sb.from('gallery').select('*').order('sort_order'),sb.from('reviews').select('*').order('sort_order'),sb.from('site_settings').select('*').eq('id',1).maybeSingle()]);renderServices(s?.length?s:defaultServices.map(x=>({number:x[0],name:x[1],description:x[2],published:true,sort_order:Number(x[0])})));renderGallery(g||[]);renderReviews(r?.length?r:defaultReviews.map((x,i)=>({...x,published:true,sort_order:i+1})));$('googleUrl').value=set?.google_review_url||C.GOOGLE_REVIEW_URL||'';$('areaText').value=set?.service_area_text||'Pairline Mowing serves Port Huron, Michigan and surrounding areas. Contact us to ask whether your address is within our service area.';}
 function renderServices(items){$('servicesEditor').innerHTML=items.map((s,i)=>`<div class="list-item service-edit"><div class="admin-grid"><div class="field"><label>Service name</label><input data-k="name" value="${esc(s.name)}"></div><div class="field"><label>Order</label><input type="number" data-k="sort_order" value="${Number(s.sort_order||i+1)}"></div><div class="field full"><label>Description</label><textarea data-k="description">${esc(s.description)}</textarea></div><div class="field"><label>Published</label><select data-k="published"><option value="true" ${s.published!==false?'selected':''}>Yes</option><option value="false" ${s.published===false?'selected':''}>No</option></select></div></div></div>`).join('');}
