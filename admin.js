@@ -1130,9 +1130,6 @@ async function saveGallery() {
 
       const payload = {
 
-        title:
-          item.title,
-
         caption:
           item.title,
 
@@ -1177,11 +1174,6 @@ async function saveGallery() {
         );
       }
     }
-
-    /*
-      Only delete rows after all updates/inserts
-      have succeeded.
-    */
 
     if (removedGalleryIds.length) {
 
