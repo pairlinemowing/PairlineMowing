@@ -1,3 +1,5 @@
+alert("ADMIN JS LOADED");
+
 const C = window.PAIRLINE_CONFIG || {};
 
 let sb = null;
