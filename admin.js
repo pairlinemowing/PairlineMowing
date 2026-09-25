@@ -21,21 +21,54 @@ function esc(v = '') {
 ------------------------------------------------- */
 
 function showLogin() {
-  if ($('login')) $('login').style.display = '';
-  if ($('dashboard')) $('dashboard').style.display = 'none';
-  if ($('setupNotice')) $('setupNotice').style.display = 'none';
+  if ($('login')) {
+    $('login').hidden = false;
+    $('login').style.display = '';
+  }
+
+  if ($('dashboard')) {
+    $('dashboard').hidden = true;
+    $('dashboard').style.display = 'none';
+  }
+
+  if ($('setupNotice')) {
+    $('setupNotice').hidden = true;
+    $('setupNotice').style.display = 'none';
+  }
 }
 
 function showDashboard() {
-  if ($('login')) $('login').style.display = 'none';
-  if ($('dashboard')) $('dashboard').style.display = '';
-  if ($('setupNotice')) $('setupNotice').style.display = 'none';
+  if ($('login')) {
+    $('login').hidden = true;
+    $('login').style.display = 'none';
+  }
+
+  if ($('dashboard')) {
+    $('dashboard').hidden = false;
+    $('dashboard').style.display = '';
+  }
+
+  if ($('setupNotice')) {
+    $('setupNotice').hidden = true;
+    $('setupNotice').style.display = 'none';
+  }
 }
 
 function showSetup() {
-  if ($('login')) $('login').style.display = 'none';
-  if ($('dashboard')) $('dashboard').style.display = 'none';
-  if ($('setupNotice')) $('setupNotice').style.display = '';
+  if ($('login')) {
+    $('login').hidden = true;
+    $('login').style.display = 'none';
+  }
+
+  if ($('dashboard')) {
+    $('dashboard').hidden = true;
+    $('dashboard').style.display = 'none';
+  }
+
+  if ($('setupNotice')) {
+    $('setupNotice').hidden = false;
+    $('setupNotice').style.display = '';
+  }
 }
 
 function setStatus(message = '', type = '') {
@@ -545,16 +578,6 @@ async function saveServices() {
 
   try {
 
-    /*
-      IMPORTANT:
-
-      We save/update first.
-
-      We DO NOT delete the existing services first.
-      This prevents the entire Services section from
-      disappearing if an insert/update fails.
-    */
-
     const savedIds = [];
 
     for (const item of items) {
@@ -596,15 +619,12 @@ async function saveServices() {
       }
     }
 
-    /*
-      Only after all additions/edits have succeeded
-      do we remove services that the admin deleted.
-    */
-
-    const { data: existingRows, error: existingError } =
-      await sb
-        .from('services')
-        .select('id');
+    const {
+      data: existingRows,
+      error: existingError
+    } = await sb
+      .from('services')
+      .select('id');
 
     if (existingError) {
       throw existingError;
@@ -613,15 +633,22 @@ async function saveServices() {
     const idsToDelete =
       (existingRows || [])
         .map(row => row.id)
-        .filter(id => !savedIds.includes(id));
+        .filter(
+          id =>
+            !savedIds.includes(id)
+        );
 
     if (idsToDelete.length) {
 
-      const { error: deleteError } =
-        await sb
-          .from('services')
-          .delete()
-          .in('id', idsToDelete);
+      const {
+        error: deleteError
+      } = await sb
+        .from('services')
+        .delete()
+        .in(
+          'id',
+          idsToDelete
+        );
 
       if (deleteError) {
         throw deleteError;
@@ -855,13 +882,8 @@ function createGallerySlot(
           row.dataset.id;
 
         /*
-          IMPORTANT:
-
-          Deleting here only removes the item
-          from the admin editor.
-
-          The database is NOT changed until
-          "Save Gallery" is clicked.
+          Delete only from the editor.
+          Database changes happen on Save Gallery.
         */
 
         if (id) {
@@ -967,11 +989,8 @@ async function uploadGalleryImage(
     }
 
     /*
-      The database is NOT updated here.
-
-      The new image is only placed into the
-      admin editor. It becomes customer-visible
-      when Save Gallery is clicked.
+      New image is NOT published until
+      Save Gallery is clicked.
     */
 
     const urlInput =
@@ -1107,11 +1126,6 @@ async function saveGallery() {
 
     const savedIds = [];
 
-    /*
-      First update existing rows and insert new rows.
-      Nothing is deleted yet.
-    */
-
     for (const item of items) {
 
       const payload = {
@@ -1165,9 +1179,8 @@ async function saveGallery() {
     }
 
     /*
-      Only after all current photos have been
-      successfully saved do we remove photos
-      the admin deliberately deleted.
+      Only delete rows after all updates/inserts
+      have succeeded.
     */
 
     if (removedGalleryIds.length) {
@@ -1185,25 +1198,6 @@ async function saveGallery() {
       if (error) {
         throw error;
       }
-    }
-
-    /*
-      Clean up old storage images only AFTER
-      the database changes have succeeded.
-    */
-
-    const urlsToRemove = [
-      ...new Set([
-        ...replacedGalleryOldUrls,
-        ...getRemovedGalleryUrls()
-      ])
-    ].filter(Boolean);
-
-    if (urlsToRemove.length) {
-
-      await deleteStorageUrls(
-        urlsToRemove
-      );
     }
 
     await loadGallery();
@@ -1231,95 +1225,8 @@ async function saveGallery() {
 
     if (button) {
       button.disabled = false;
-      button.textContent = 'Save Gallery';
+      button.textContent = 'Save gallery';
     }
-  }
-}
-
-async function getRemovedGalleryUrls() {
-
-  if (
-    !sb ||
-    !removedGalleryIds.length
-  ) {
-    return [];
-  }
-
-  /*
-    This function is intentionally conservative.
-    Storage cleanup is optional and must never
-    prevent the database save from working.
-  */
-
-  return [];
-}
-
-async function deleteStorageUrls(urls) {
-
-  if (!sb || !urls.length) {
-    return;
-  }
-
-  const paths = [];
-
-  for (const url of urls) {
-
-    try {
-
-      const marker =
-        '/storage/v1/object/public/SITE-IMAGES/';
-
-      const index =
-        url.indexOf(marker);
-
-      if (index !== -1) {
-
-        const path =
-          decodeURIComponent(
-            url.substring(
-              index + marker.length
-            )
-          );
-
-        if (path) {
-          paths.push(path);
-        }
-      }
-
-    } catch (err) {
-
-      console.warn(
-        'Could not determine old storage path:',
-        err
-      );
-    }
-  }
-
-  if (!paths.length) {
-    return;
-  }
-
-  try {
-
-    const {
-      error
-    } = await sb.storage
-      .from('SITE-IMAGES')
-      .remove(paths);
-
-    if (error) {
-      console.warn(
-        'Old gallery image cleanup failed:',
-        error
-      );
-    }
-
-  } catch (err) {
-
-    console.warn(
-      'Old gallery image cleanup failed:',
-      err
-    );
   }
 }
 
@@ -1371,7 +1278,7 @@ function ensureAddReviewButton() {
   button.type = 'button';
   button.id = 'addReview';
   button.textContent = 'Add Review';
-  button.className = 'btn btn-secondary';
+  button.className = 'admin-btn secondary';
 
   editor.parentElement?.insertBefore(
     button,
@@ -1630,11 +1537,6 @@ async function saveReviews() {
 
     const savedIds = [];
 
-    /*
-      Save/update first.
-      Do NOT delete everything first.
-    */
-
     for (const item of items) {
 
       const payload = {
@@ -1689,11 +1591,6 @@ async function saveReviews() {
         );
       }
     }
-
-    /*
-      Delete only reviews that were actually
-      removed from the editor.
-    */
 
     const {
       data: existingRows,
@@ -1756,7 +1653,7 @@ async function saveReviews() {
 
     if (button) {
       button.disabled = false;
-      button.textContent = 'Save Reviews';
+      button.textContent = 'Save reviews';
     }
   }
 }
@@ -1912,7 +1809,7 @@ async function saveSettings() {
 
     if (button) {
       button.disabled = false;
-      button.textContent = 'Save Settings';
+      button.textContent = 'Save settings';
     }
   }
 }
@@ -1935,152 +1832,4 @@ async function loadAll() {
   ]);
 }
 
-/* -------------------------------------------------
-   EVENT LISTENERS
-------------------------------------------------- */
-
-function setupEventListeners() {
-
-  const signInBtn =
-    $('signInBtn');
-
-  if (signInBtn) {
-
-    signInBtn.addEventListener(
-      'click',
-      signIn
-    );
-  }
-
-  const passwordInput =
-    $('passwordInput');
-
-  if (passwordInput) {
-
-    passwordInput.addEventListener(
-      'keydown',
-      event => {
-
-        if (
-          event.key === 'Enter'
-        ) {
-          signIn();
-        }
-
-      }
-    );
-  }
-
-  const signOutBtn =
-    $('signOut');
-
-  if (signOutBtn) {
-
-    signOutBtn.addEventListener(
-      'click',
-      signOut
-    );
-  }
-
-  const addServiceBtn =
-    $('addService');
-
-  if (addServiceBtn) {
-
-    addServiceBtn.addEventListener(
-      'click',
-      addService
-    );
-  }
-
-  const saveServicesBtn =
-    $('saveServices');
-
-  if (saveServicesBtn) {
-
-    saveServicesBtn.addEventListener(
-      'click',
-      saveServices
-    );
-  }
-
-  const addGalleryBtn =
-    $('addGallery');
-
-  if (addGalleryBtn) {
-
-    addGalleryBtn.addEventListener(
-      'click',
-      addGallery
-    );
-  }
-
-  const saveGalleryBtn =
-    $('saveGallery');
-
-  if (saveGalleryBtn) {
-
-    saveGalleryBtn.addEventListener(
-      'click',
-      saveGallery
-    );
-  }
-
-  const saveReviewsBtn =
-    $('saveReviews');
-
-  if (saveReviewsBtn) {
-
-    saveReviewsBtn.addEventListener(
-      'click',
-      saveReviews
-    );
-  }
-
-  const saveSettingsBtn =
-    $('saveSettings');
-
-  if (saveSettingsBtn) {
-
-    saveSettingsBtn.addEventListener(
-      'click',
-      saveSettings
-    );
-  }
-
-  ensureAddReviewButton();
-}
-
-/* -------------------------------------------------
-   STARTUP
-------------------------------------------------- */
-
-document.addEventListener(
-  'DOMContentLoaded',
-  async () => {
-
-    showLogin();
-
-    setupEventListeners();
-
-    if (
-      !C.SUPABASE_URL ||
-      !C.SUPABASE_ANON_KEY ||
-      !C.OWNER_EMAIL
-    ) {
-
-      showSetup();
-
-      return;
-    }
-
-    if (!initializeSupabase()) {
-
-      showSetup();
-
-      return;
-    }
-
-    await check();
-  }
-);
+/
