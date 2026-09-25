@@ -1,42 +1,42 @@
 const CONFIG = window.PAIRLINE_CONFIG || {};
 
 const DEFAULT_SERVICES = [
-  ['01','Lawn Mowing','Consistent mowing to keep your lawn clean, even, and well maintained.'],
-  ['02','Edging','Crisp edges along sidewalks, driveways, and lawn borders for a finished look.'],
-  ['03','Weed Whacking','Detailed trimming around areas a mower cannot reach for a cleaner property.'],
-  ['04','Gutter Cleaning','Help keep gutters clear of leaves and debris so water can flow properly.'],
-  ['05','Lawn Mower Repairs','Repair help for lawn mowers and related equipment. Contact us with the issue.'],
-  ['06','Whipper & Equipment Repairs','Repair help for whippers and other lawn equipment. Contact us to discuss your equipment.']
+  ['01', 'Lawn Mowing', 'Consistent mowing to keep your lawn clean, even, and well maintained.'],
+  ['02', 'Edging', 'Crisp edges along sidewalks, driveways, and lawn borders for a finished look.'],
+  ['03', 'Weed Whacking', 'Detailed trimming around areas a mower cannot reach for a cleaner property.'],
+  ['04', 'Gutter Cleaning', 'Help keep gutters clear of leaves and debris so water can flow properly.'],
+  ['05', 'Lawn Mower Repairs', 'Repair help for lawn mowers and related equipment. Contact us with the issue.'],
+  ['06', 'Whipper & Equipment Repairs', 'Repair help for whippers and other lawn equipment. Contact us to discuss your equipment.']
 ];
 
 const DEFAULT_REVIEWS = [
   {
-    name:'Pamela B.',
-    title:'Great price',
-    text:'I had lawn service yesterday edging my yard and flower beds. Not only did they do an exceptional job but they are very professional and respectful. The owners have great communication and respond quickly to messages. I am so pleased with their professionalism. I have a list of jobs that I am hiring them for, starting with power washing our house this weekend. Then their next project will be deck and porch painting. I am excited and grateful to have them because I have a list of home projects that I need done and my husband and I are not able to accomplish it on our own. It was a blessing to randomly have met them as they were working on a neighbors property. Can’t wait to have my projects finished and I have great confidence that they will do a fantastic job. When the yard work was done, they knocked on the door and asked if I was satisfied with the job. That was so nice and respectful. You can tell they take pride in their work. Exceptional service!!! Highly recommend. 5 stars for sure! Give them a call. You won’t be disappointed!!!'
+    name: 'Pamela B.',
+    title: 'Great price',
+    text: 'I had lawn service yesterday edging my yard and flower beds. Not only did they do an exceptional job but they are very professional and respectful. The owners have great communication and respond quickly to messages. I am so pleased with their professionalism. I have a list of jobs that I am hiring them for, starting with power washing our house this weekend. Then their next project will be deck and porch painting. I am excited and grateful to have them because I have a list of home projects that I need done and my husband and I are not able to accomplish it on our own. It was a blessing to randomly have met them as they were working on a neighbors property. Can’t wait to have my projects finished and I have great confidence that they will do a fantastic job. When the yard work was done, they knocked on the door and asked if I was satisfied with the job. That was so nice and respectful. You can tell they take pride in their work. Exceptional service!!! Highly recommend. 5 stars for sure! Give them a call. You won’t be disappointed!!!'
   },
   {
-    name:'Charly Parker',
-    title:'',
-    text:'These guys did an amazing job! I wanted my grass cut the same day and they were at my house in less than an hour! Not only did they do a beautiful job, they were super respectful. Will absolutely be my go-to lawn service!'
+    name: 'Charly Parker',
+    title: '',
+    text: 'These guys did an amazing job! I wanted my grass cut the same day and they were at my house in less than an hour! Not only did they do a beautiful job, they were super respectful. Will absolutely be my go-to lawn service!'
   },
   {
-    name:'Iain Baunoch',
-    title:'Great price',
-    text:'These guys do excellent work. They have a great attention to detail, work quickly and make sure the job is done right.'
+    name: 'Iain Baunoch',
+    title: 'Great price',
+    text: 'These guys do excellent work. They have a great attention to detail, work quickly and make sure the job is done right.'
   }
 ];
 
 const DEFAULT_GALLERY = [
   {
-    image_url:'images/our-work-1.jpeg',
-    caption:'Lawn mowing work',
-    sort_order:1
+    image_url: 'images/our-work-1.jpeg',
+    caption: 'Lawn mowing work',
+    sort_order: 1
   },
   {
-    image_url:'images/our-work-2.jpeg',
-    caption:'Finished lawn care work',
-    sort_order:2
+    image_url: 'images/our-work-2.jpeg',
+    caption: 'Finished lawn care work',
+    sort_order: 2
   }
 ];
 
@@ -57,55 +57,74 @@ function escapeHtml(value = '') {
   return String(value).replace(
     /[&<>'"]/g,
     c => ({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      "'":'&#39;',
-      '"':'&quot;'
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#039;',
+      '"': '&quot;'
     }[c])
   );
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    SERVICES
-------------------------------------------------- */
+----------------------------- */
 
 function renderServices(items = DEFAULT_SERVICES) {
   const grid = document.getElementById('servicesGrid');
 
   if (!grid) return;
 
-  grid.innerHTML = items.map((s, i) => `
-    <article class="service-card">
-      <div class="service-number">
-        ${escapeHtml(
-          s.number ||
-          s.sort_order ||
-          String(i + 1).padStart(2, '0')
-        )}
-      </div>
+  grid.innerHTML = items.map((s, i) => {
+    const number =
+      Array.isArray(s)
+        ? s[0]
+        : (
+            s.number ||
+            s.sort_order ||
+            String(i + 1).padStart(2, '0')
+          );
 
-      <h3>
-        ${escapeHtml(
-          s.title ||
-          s.name ||
-          ''
-        )}
-      </h3>
+    const title =
+      Array.isArray(s)
+        ? s[1]
+        : (
+            s.title ||
+            s.name ||
+            ''
+          );
 
-      <p>
-        ${escapeHtml(
-          s.description ||
-          ''
-        )}
-      </p>
-    </article>
-  `).join('');
+    const description =
+      Array.isArray(s)
+        ? s[2]
+        : (
+            s.description ||
+            ''
+          );
+
+    return `
+      <article class="service-card">
+
+        <div class="service-number">
+          ${escapeHtml(number)}
+        </div>
+
+        <h3>
+          ${escapeHtml(title)}
+        </h3>
+
+        <p>
+          ${escapeHtml(description)}
+        </p>
+
+      </article>
+    `;
+  }).join('');
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    OUR WORK / GALLERY
-------------------------------------------------- */
+----------------------------- */
 
 function renderGallery(items = DEFAULT_GALLERY) {
   const grid = document.getElementById('galleryGrid');
@@ -119,7 +138,7 @@ function renderGallery(items = DEFAULT_GALLERY) {
   );
 
   grid.innerHTML = sortedItems.map(g => `
-    <figure class="gallery-card">
+    <figure class="gallery-item">
 
       <img
         loading="lazy"
@@ -143,9 +162,9 @@ function renderGallery(items = DEFAULT_GALLERY) {
   `).join('');
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    REVIEWS
-------------------------------------------------- */
+----------------------------- */
 
 function renderReviews(items = DEFAULT_REVIEWS) {
   const grid = document.getElementById('reviewsGrid');
@@ -153,21 +172,17 @@ function renderReviews(items = DEFAULT_REVIEWS) {
   if (!grid) return;
 
   grid.innerHTML = items.map(r => {
+    const rating = Number(r.rating) || 5;
 
-    const rating =
-      Number(r.rating) ||
-      5;
-
-    const stars =
-      '★'.repeat(
-        Math.max(
-          0,
-          Math.min(
-            5,
-            rating
-          )
+    const stars = '★'.repeat(
+      Math.max(
+        0,
+        Math.min(
+          5,
+          rating
         )
-      );
+      )
+    );
 
     return `
       <article class="review-card">
@@ -180,10 +195,7 @@ function renderReviews(items = DEFAULT_REVIEWS) {
         </div>
 
         <h3>
-          ${escapeHtml(
-            r.name ||
-            ''
-          )}
+          ${escapeHtml(r.name || '')}
         </h3>
 
         ${
@@ -197,10 +209,7 @@ function renderReviews(items = DEFAULT_REVIEWS) {
         }
 
         <p>
-          ${escapeHtml(
-            r.text ||
-            ''
-          )}
+          ${escapeHtml(r.text || '')}
         </p>
 
       </article>
@@ -208,60 +217,51 @@ function renderReviews(items = DEFAULT_REVIEWS) {
   }).join('');
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    GOOGLE REVIEW LINKS
-------------------------------------------------- */
+----------------------------- */
 
 function updateGoogleLinks(
   viewUrl,
   leaveUrl
 ) {
   const googleReviewsBtn =
-    document.getElementById(
-      'googleReviewsBtn'
-    );
+    document.getElementById('googleReviewsBtn');
 
   const leaveReviewBtn =
-    document.getElementById(
-      'leaveReviewBtn'
-    );
+    document.getElementById('leaveReviewBtn');
 
   if (
     googleReviewsBtn &&
     viewUrl
   ) {
-    googleReviewsBtn.href =
-      viewUrl;
+    googleReviewsBtn.href = viewUrl;
   }
 
   if (
     leaveReviewBtn &&
     leaveUrl
   ) {
-    leaveReviewBtn.href =
-      leaveUrl;
+    leaveReviewBtn.href = leaveUrl;
   }
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    LOAD CONTENT FROM SUPABASE
-------------------------------------------------- */
+----------------------------- */
 
 async function loadSupabaseContent() {
-
   if (!supabaseClient) {
     return;
   }
 
   try {
-
     const [
       servicesResult,
       galleryResult,
       reviewsResult,
       settingsResult
     ] = await Promise.all([
-
       supabaseClient
         .from('services')
         .select('*')
@@ -282,7 +282,6 @@ async function loadSupabaseContent() {
         .select('*')
         .eq('id', 1)
         .maybeSingle()
-
     ]);
 
     const services =
@@ -297,111 +296,57 @@ async function loadSupabaseContent() {
     const settings =
       settingsResult.data;
 
-    /* ---------------------------------------------
-       SERVICES
-
-       If Supabase successfully returns rows,
-       show those rows.
-
-       If there are zero rows, leave the section
-       empty instead of restoring deleted items.
-    --------------------------------------------- */
-
-    if (
-      !servicesResult.error
-    ) {
-      renderServices(
-        services
-      );
+    if (!servicesResult.error) {
+      renderServices(services);
     }
 
-    /* ---------------------------------------------
-       GALLERY
-    --------------------------------------------- */
-
-    if (
-      !galleryResult.error
-    ) {
-      renderGallery(
-        gallery
-      );
+    if (!galleryResult.error) {
+      renderGallery(gallery);
     }
 
-    /* ---------------------------------------------
-       REVIEWS
-    --------------------------------------------- */
-
-    if (
-      !reviewsResult.error
-    ) {
-      renderReviews(
-        reviews
-      );
+    if (!reviewsResult.error) {
+      renderReviews(reviews);
     }
-
-    /* ---------------------------------------------
-       SETTINGS
-    --------------------------------------------- */
 
     if (settings) {
-
       updateGoogleLinks(
         settings.google_review_url,
         settings.leave_review_url
       );
 
-      if (
-        settings.service_area_text
-      ) {
+      const areaText =
+        document.getElementById(
+          'serviceAreaText'
+        );
 
-        const areaText =
-          document.getElementById(
-            'serviceAreaText'
-          );
-
-        if (areaText) {
-
-          areaText.textContent =
-            settings.service_area_text;
-
-        }
+      if (areaText) {
+        areaText.textContent =
+          settings.service_area_text || '';
       }
     }
 
-    /* ---------------------------------------------
-       ERROR REPORTING
-    --------------------------------------------- */
-
-    if (
-      servicesResult.error
-    ) {
+    if (servicesResult.error) {
       console.warn(
         'Services could not be loaded:',
         servicesResult.error
       );
     }
 
-    if (
-      galleryResult.error
-    ) {
+    if (galleryResult.error) {
       console.warn(
         'Gallery could not be loaded:',
         galleryResult.error
       );
     }
 
-    if (
-      reviewsResult.error
-    ) {
+    if (reviewsResult.error) {
       console.warn(
         'Reviews could not be loaded:',
         reviewsResult.error
       );
     }
 
-    if (
-      settingsResult.error
-    ) {
+    if (settingsResult.error) {
       console.warn(
         'Site settings could not be loaded:',
         settingsResult.error
@@ -409,46 +354,178 @@ async function loadSupabaseContent() {
     }
 
   } catch (e) {
-
     console.warn(
       'Optional online content could not be loaded. Showing built-in content.',
       e
     );
 
-    /*
-      If Supabase completely fails,
-      keep the built-in website content.
-    */
-
-    renderServices(
-      DEFAULT_SERVICES
-    );
-
-    renderGallery(
-      DEFAULT_GALLERY
-    );
-
-    renderReviews(
-      DEFAULT_REVIEWS
-    );
+    renderServices(DEFAULT_SERVICES);
+    renderGallery(DEFAULT_GALLERY);
+    renderReviews(DEFAULT_REVIEWS);
   }
 }
 
-/* -------------------------------------------------
+/* -----------------------------
+   REALTIME UPDATES
+----------------------------- */
+
+function setupRealtime() {
+  if (!supabaseClient) {
+    return;
+  }
+
+  supabaseClient
+    .channel('pairline-live-site')
+
+    /* SERVICES */
+
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'services'
+      },
+      async () => {
+        console.log(
+          'Services changed. Updating website...'
+        );
+
+        const {
+          data,
+          error
+        } = await supabaseClient
+          .from('services')
+          .select('*')
+          .order('sort_order');
+
+        if (!error) {
+          renderServices(data || []);
+        }
+      }
+    )
+
+    /* GALLERY */
+
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'gallery'
+      },
+      async () => {
+        console.log(
+          'Gallery changed. Updating website...'
+        );
+
+        const {
+          data,
+          error
+        } = await supabaseClient
+          .from('gallery')
+          .select('*')
+          .order('sort_order');
+
+        if (!error) {
+          renderGallery(data || []);
+        }
+      }
+    )
+
+    /* REVIEWS */
+
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'reviews'
+      },
+      async () => {
+        console.log(
+          'Reviews changed. Updating website...'
+        );
+
+        const {
+          data,
+          error
+        } = await supabaseClient
+          .from('reviews')
+          .select('*')
+          .order('sort_order');
+
+        if (!error) {
+          renderReviews(data || []);
+        }
+      }
+    )
+
+    /* SITE SETTINGS */
+
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'site_settings'
+      },
+      async () => {
+        console.log(
+          'Site settings changed. Updating website...'
+        );
+
+        const {
+          data,
+          error
+        } = await supabaseClient
+          .from('site_settings')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+
+        if (
+          !error &&
+          data
+        ) {
+          updateGoogleLinks(
+            data.google_review_url,
+            data.leave_review_url
+          );
+
+          const areaText =
+            document.getElementById(
+              'serviceAreaText'
+            );
+
+          if (areaText) {
+            areaText.textContent =
+              data.service_area_text || '';
+          }
+        }
+      }
+    )
+
+    .subscribe(
+      status => {
+        console.log(
+          'Pairline realtime status:',
+          status
+        );
+      }
+    );
+}
+
+/* -----------------------------
    MOBILE NAVIGATION
-------------------------------------------------- */
+----------------------------- */
 
 function setupNav() {
-
   const btn =
-    document.getElementById(
-      'menuToggle'
-    );
+    document.getElementById('menuToggle');
 
   const nav =
-    document.getElementById(
-      'siteNav'
-    );
+    document.getElementById('siteNav');
 
   if (
     !btn ||
@@ -460,11 +537,8 @@ function setupNav() {
   btn.addEventListener(
     'click',
     () => {
-
       const open =
-        nav.classList.toggle(
-          'open'
-        );
+        nav.classList.toggle('open');
 
       btn.setAttribute(
         'aria-expanded',
@@ -476,14 +550,10 @@ function setupNav() {
   nav
     .querySelectorAll('a')
     .forEach(a => {
-
       a.addEventListener(
         'click',
         () => {
-
-          nav.classList.remove(
-            'open'
-          );
+          nav.classList.remove('open');
 
           btn.setAttribute(
             'aria-expanded',
@@ -491,25 +561,16 @@ function setupNav() {
           );
         }
       );
-
     });
 }
 
-/* -------------------------------------------------
+/* -----------------------------
    INITIAL PAGE CONTENT
-------------------------------------------------- */
+----------------------------- */
 
-renderServices(
-  DEFAULT_SERVICES
-);
-
-renderGallery(
-  DEFAULT_GALLERY
-);
-
-renderReviews(
-  DEFAULT_REVIEWS
-);
+renderServices(DEFAULT_SERVICES);
+renderGallery(DEFAULT_GALLERY);
+renderReviews(DEFAULT_REVIEWS);
 
 updateGoogleLinks(
   CONFIG.GOOGLE_REVIEW_URL,
@@ -518,8 +579,14 @@ updateGoogleLinks(
 
 setupNav();
 
-/* -------------------------------------------------
+/* -----------------------------
    LOAD SAVED ADMIN CONTENT
-------------------------------------------------- */
+----------------------------- */
 
 loadSupabaseContent();
+
+/* -----------------------------
+   START REALTIME
+----------------------------- */
+
+setupRealtime();
