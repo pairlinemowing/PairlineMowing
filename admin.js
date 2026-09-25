@@ -1832,4 +1832,116 @@ async function loadAll() {
   ]);
 }
 
-/
+/* -------------------------------------------------
+   EVENT LISTENERS
+------------------------------------------------- */
+
+function setupEventListeners() {
+
+  const signInBtn = $('signInBtn');
+
+  if (signInBtn) {
+    signInBtn.addEventListener(
+      'click',
+      signIn
+    );
+  }
+
+  const signOutBtn = $('signOut');
+
+  if (signOutBtn) {
+    signOutBtn.addEventListener(
+      'click',
+      signOut
+    );
+  }
+
+  const saveSettingsBtn = $('saveSettings');
+
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener(
+      'click',
+      saveSettings
+    );
+  }
+
+  const addServiceBtn = $('addService');
+
+  if (addServiceBtn) {
+    addServiceBtn.addEventListener(
+      'click',
+      addService
+    );
+  }
+
+  const saveServicesBtn = $('saveServices');
+
+  if (saveServicesBtn) {
+    saveServicesBtn.addEventListener(
+      'click',
+      saveServices
+    );
+  }
+
+  const addGalleryBtn = $('addGallery');
+
+  if (addGalleryBtn) {
+    addGalleryBtn.addEventListener(
+      'click',
+      addGallery
+    );
+  }
+
+  const saveGalleryBtn = $('saveGallery');
+
+  if (saveGalleryBtn) {
+    saveGalleryBtn.addEventListener(
+      'click',
+      saveGallery
+    );
+  }
+
+  const saveReviewsBtn = $('saveReviews');
+
+  if (saveReviewsBtn) {
+    saveReviewsBtn.addEventListener(
+      'click',
+      saveReviews
+    );
+  }
+}
+
+
+/* -------------------------------------------------
+   STARTUP
+------------------------------------------------- */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  async () => {
+
+    showLogin();
+
+    setupEventListeners();
+
+    if (
+      !C.SUPABASE_URL ||
+      !C.SUPABASE_ANON_KEY ||
+      !C.OWNER_EMAIL
+    ) {
+
+      showSetup();
+
+      return;
+    }
+
+    if (!initializeSupabase()) {
+
+      showSetup();
+
+      return;
+    }
+
+    await check();
+  }
+);
