@@ -16,12 +16,9 @@ function esc(v = '') {
     .replaceAll("'", '&#039;');
 }
 
-
-/* =========================================================
-   DEFAULT WEBSITE DATA
-   These are ONLY used if Supabase has no services yet.
-   Existing Supabase/site data always takes priority.
-========================================================= */
+/* -----------------------------
+   DEFAULT SERVICES
+----------------------------- */
 
 const defaultServices = [
   {
@@ -51,10 +48,11 @@ const defaultServices = [
   }
 ];
 
+const defaultReviews = [];
 
-/* =========================================================
+/* -----------------------------
    SCREEN CONTROL
-========================================================= */
+----------------------------- */
 
 function showLogin() {
   const login = $('loginScreen');
@@ -92,64 +90,44 @@ function setStatus(message = '', type = '') {
   if (!el) return;
 
   el.textContent = message;
-  el.className = 'status';
-
-  if (type) {
-    el.classList.add(type);
-  }
+  el.className = type ? `status ${type}` : 'status';
 }
 
-
-/* =========================================================
-   SUPABASE CONNECTION
-========================================================= */
+/* -----------------------------
+   SUPABASE
+----------------------------- */
 
 function initializeSupabase() {
   if (!window.supabase) {
     setStatus(
-      'Supabase could not be loaded.',
+      'Supabase library could not be loaded. Check your internet connection.',
       'error'
     );
-
     return false;
   }
 
   if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
     setStatus(
-      'Supabase is not configured. Check your public configuration.',
+      'Supabase is not configured. Check your config.js file.',
       'error'
     );
-
     return false;
   }
 
-  try {
-    sb = window.supabase.createClient(
-      C.SUPABASE_URL,
-      C.SUPABASE_ANON_KEY
-    );
+  sb = window.supabase.createClient(
+    C.SUPABASE_URL,
+    C.SUPABASE_ANON_KEY
+  );
 
-    return true;
-
-  } catch (err) {
-    console.error(err);
-
-    setStatus(
-      'Could not connect to Supabase.',
-      'error'
-    );
-
-    return false;
-  }
+  return true;
 }
 
-
-/* =========================================================
-   OWNER AUTHORIZATION
-========================================================= */
+/* -----------------------------
+   OWNER CHECK
+----------------------------- */
 
 function isOwner(u) {
-  if (!u || !u.email || !C.OWNER_EMAIL) {
+  if (!u?.email || !C.OWNER_EMAIL) {
     return false;
   }
 
@@ -159,141 +137,110 @@ function isOwner(u) {
   );
 }
 
-
-/* =========================================================
+/* -----------------------------
    SIGN IN
-========================================================= */
+   RESTORED WORKING FLOW
+----------------------------- */
 
 async function signIn() {
   if (!sb) {
-    if (!initializeSupabase()) {
+    const initialized = initializeSupabase();
+
+    if (!initialized) {
       return;
     }
   }
 
-  const email = $('email')?.value.trim() || '';
-  const password = $('password')?.value || '';
+  const emailEl = $('email');
+  const passwordEl = $('password');
+
+  const email = emailEl?.value.trim() || '';
+  const password = passwordEl?.value || '';
 
   if (!email || !password) {
-    setStatus(
-      'Enter your owner email and password.',
-      'error'
-    );
-
+    setStatus('Enter your email and password.', 'error');
     return;
   }
 
   setStatus('Signing in...');
 
-  try {
-    const { data, error } =
-      await sb.auth.signInWithPassword({
-        email,
-        password
-      });
+  const { data, error } = await sb.auth.signInWithPassword({
+    email,
+    password
+  });
 
-    if (error) {
-      console.error(error);
-
-      setStatus(
-        'Incorrect email or password.',
-        'error'
-      );
-
-      return;
-    }
-
-    const signedInUser = data?.user;
-
-    /*
-      Authentication succeeded, but authentication alone
-      is NOT enough.
-
-      The account must also match OWNER_EMAIL.
-    */
-    if (!signedInUser || !isOwner(signedInUser)) {
-
-      await sb.auth.signOut();
-
-      user = null;
-
-      showLogin();
-
-      setStatus(
-        'This account is not authorized to access the owner dashboard.',
-        'error'
-      );
-
-      return;
-    }
-
-    /*
-      Only after BOTH authentication and owner verification
-      do we allow the dashboard to appear.
-    */
-    user = signedInUser;
-
-    showDashboard();
-
+  if (error) {
+    console.error('Sign-in error:', error);
     setStatus(
-      'Signed in successfully.',
-      'success'
-    );
-
-    await loadAll();
-
-  } catch (err) {
-    console.error(err);
-
-    user = null;
-
-    showLogin();
-
-    setStatus(
-      'Something went wrong while signing in.',
+      error.message || 'Incorrect email or password.',
       'error'
     );
-  }
-}
-
-
-/* =========================================================
-   SIGN OUT
-========================================================= */
-
-async function signOut() {
-  if (!sb) {
     return;
   }
 
-  try {
+  const signedInUser = data?.user;
+
+  if (!signedInUser) {
+    setStatus('Sign-in failed. No user was returned.', 'error');
+    return;
+  }
+
+  /*
+    Only the configured owner can use the dashboard.
+    Anyone else gets signed out immediately.
+  */
+  if (!isOwner(signedInUser)) {
     await sb.auth.signOut();
-  } catch (err) {
-    console.error(err);
+    user = null;
+    showLogin();
+
+    setStatus(
+      'This account is not authorized to access the admin dashboard.',
+      'error'
+    );
+
+    return;
+  }
+
+  user = signedInUser;
+
+  showDashboard();
+
+  setStatus('Signed in successfully.', 'success');
+
+  await loadAll();
+}
+
+/* -----------------------------
+   SIGN OUT
+----------------------------- */
+
+async function signOut() {
+  if (sb) {
+    await sb.auth.signOut();
   }
 
   user = null;
 
   showLogin();
 
-  if ($('password')) {
-    $('password').value = '';
+  const password = $('password');
+
+  if (password) {
+    password.value = '';
   }
 
   setStatus('Signed out.');
 }
 
-
-/* =========================================================
+/* -----------------------------
    SERVICES
-========================================================= */
+----------------------------- */
 
 function renderServices(items = []) {
   const container = $('servicesList');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   if (!items.length) {
     container.innerHTML = `
@@ -305,125 +252,71 @@ function renderServices(items = []) {
     return;
   }
 
-  container.innerHTML = items.map((item, index) => `
-    <div
-      class="admin-card service-card"
-      data-service-index="${index}">
+  container.innerHTML = items
+    .map(
+      (item, index) => `
+        <div class="admin-card service-card" data-index="${index}">
+          <label>
+            Service Title
+            <input
+              class="service-title"
+              type="text"
+              value="${esc(item.title || '')}"
+            >
+          </label>
 
-      <div class="admin-card-header">
-        <strong>
-          Service ${index + 1}
-        </strong>
+          <label>
+            Description
+            <textarea class="service-description">${esc(
+              item.description || ''
+            )}</textarea>
+          </label>
 
-        <button
-          type="button"
-          class="danger remove-service">
-          Delete Service
-        </button>
-      </div>
-
-      <label>
-        Service Name
-
-        <input
-          type="text"
-          class="service-title"
-          value="${esc(item.title || '')}"
-          placeholder="Service name">
-      </label>
-
-      <label>
-        Description
-
-        <textarea
-          class="service-description"
-          rows="4"
-          placeholder="Service description">${esc(item.description || '')}</textarea>
-      </label>
-    </div>
-  `).join('');
+          <button
+            type="button"
+            class="danger delete-service"
+            data-index="${index}"
+          >
+            Delete Service
+          </button>
+        </div>
+      `
+    )
+    .join('');
 
   attachServiceDeleteButtons();
 }
 
 function attachServiceDeleteButtons() {
-  const container = $('servicesList');
+  document.querySelectorAll('.delete-service').forEach(button => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.index);
 
-  if (!container) {
-    return;
-  }
+      const card = button.closest('.service-card');
 
-  container
-    .querySelectorAll('.remove-service')
-    .forEach(button => {
-
-      button.addEventListener('click', () => {
-
-        const card =
-          button.closest('.service-card');
-
-        if (!card) {
-          return;
-        }
-
-        const title =
-          card.querySelector('.service-title')
-            ?.value.trim() ||
-          'this service';
-
-        const confirmed = confirm(
-          `Delete "${title}"?\n\nThis will remove it from the services you manage.`
-        );
-
-        if (!confirmed) {
-          return;
-        }
-
+      if (card) {
         card.remove();
-
-        if (!container.querySelector('.service-card')) {
-          container.innerHTML = `
-            <div class="empty-state">
-              No services have been added yet.
-            </div>
-          `;
-        }
-
-        setStatus(
-          'Service removed from the dashboard. Click "Save Services" to apply the change.',
-          'success'
-        );
-      });
+      }
     });
+  });
 }
 
 function collectServices() {
-  const container = $('servicesList');
-
-  if (!container) {
-    return [];
-  }
-
-  return [...container.querySelectorAll('.service-card')]
+  return [...document.querySelectorAll('.service-card')]
     .map(card => ({
       title:
-        card.querySelector('.service-title')
-          ?.value.trim() || '',
-
+        card.querySelector('.service-title')?.value.trim() || '',
       description:
-        card.querySelector('.service-description')
+        card
+          .querySelector('.service-description')
           ?.value.trim() || ''
     }))
-    .filter(service => service.title);
+    .filter(item => item.title);
 }
 
 async function saveServices() {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to save services.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
@@ -431,671 +324,357 @@ async function saveServices() {
 
   setStatus('Saving services...');
 
-  try {
+  const { error: deleteError } = await sb
+    .from('services')
+    .delete()
+    .neq('id', 0);
 
-    /*
-      Replace the service list with the current
-      dashboard contents.
-    */
-
-    const { error: deleteError } =
-      await sb
-        .from('services')
-        .delete()
-        .neq('id', 0);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    if (services.length) {
-
-      const { error: insertError } =
-        await sb
-          .from('services')
-          .insert(services);
-
-      if (insertError) {
-        throw insertError;
-      }
-    }
-
+  if (deleteError) {
+    console.error(deleteError);
     setStatus(
-      'Services saved successfully.',
-      'success'
-    );
-
-  } catch (err) {
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not save services.',
+      `Could not clear existing services: ${deleteError.message}`,
       'error'
     );
+    return;
   }
+
+  if (services.length) {
+    const { error } = await sb
+      .from('services')
+      .insert(services);
+
+    if (error) {
+      console.error(error);
+      setStatus(
+        `Could not save services: ${error.message}`,
+        'error'
+      );
+      return;
+    }
+  }
+
+  setStatus('Services saved successfully.', 'success');
+
+  await loadAll();
 }
 
 function addService() {
   const container = $('servicesList');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
-  const empty =
-    container.querySelector('.empty-state');
+  const card = document.createElement('div');
 
-  if (empty) {
-    empty.remove();
-  }
-
-  const number =
-    container.querySelectorAll('.service-card').length + 1;
-
-  const card =
-    document.createElement('div');
-
-  card.className =
-    'admin-card service-card';
+  card.className = 'admin-card service-card';
 
   card.innerHTML = `
-    <div class="admin-card-header">
-
-      <strong>
-        New Service
-      </strong>
-
-      <button
-        type="button"
-        class="danger remove-service">
-        Delete Service
-      </button>
-
-    </div>
-
     <label>
-      Service Name
-
+      Service Title
       <input
-        type="text"
         class="service-title"
-        placeholder="Service name">
+        type="text"
+        placeholder="Service name"
+      >
     </label>
 
     <label>
       Description
-
       <textarea
         class="service-description"
-        rows="4"
-        placeholder="Service description"></textarea>
+        placeholder="Service description"
+      ></textarea>
     </label>
+
+    <button
+      type="button"
+      class="danger delete-service"
+    >
+      Delete Service
+    </button>
   `;
-
-  card
-    .querySelector('.remove-service')
-    .addEventListener('click', () => {
-
-      const title =
-        card.querySelector('.service-title')
-          ?.value.trim() ||
-        'this service';
-
-      const confirmed = confirm(
-        `Delete "${title}"?`
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      card.remove();
-
-      if (!container.querySelector('.service-card')) {
-        container.innerHTML = `
-          <div class="empty-state">
-            No services have been added yet.
-          </div>
-        `;
-      }
-    });
 
   container.appendChild(card);
 
-  card.querySelector('.service-title')?.focus();
-
-  setStatus(
-    'New service added. Fill it out and save your services.',
-    'success'
-  );
+  card
+    .querySelector('.delete-service')
+    ?.addEventListener('click', () => {
+      card.remove();
+    });
 }
 
-
-/* =========================================================
+/* -----------------------------
    GALLERY
-========================================================= */
+----------------------------- */
 
 function createGalleryFileName(file) {
-  const original =
-    file.name || 'photo';
+  const originalName = file?.name || 'image';
 
   const extension =
-    original.includes('.')
-      ? original.split('.').pop().toLowerCase()
+    originalName.includes('.')
+      ? originalName.split('.').pop().toLowerCase()
       : 'jpg';
 
-  const safeExtension =
-    extension.replace(
-      /[^a-z0-9]/g,
-      ''
-    ) || 'jpg';
-
-  const id =
-    typeof crypto !== 'undefined' &&
-    crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}`;
-
-  return `gallery/${id}.${safeExtension}`;
+  return `gallery/${crypto.randomUUID()}.${extension}`;
 }
 
 function renderGallery(items = []) {
   const container = $('galleryList');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   if (!items.length) {
-
     container.innerHTML = `
-      <div class="empty-state gallery-empty">
-
-        <p>
-          No Our Work photos have been added yet.
-        </p>
-
-        <button
-          type="button"
-          id="addFirstGallery">
-          Add Photo
-        </button>
-
+      <div class="empty-state">
+        No Our Work photos have been added yet.
       </div>
+
+      <button type="button" id="emptyAddGallery">
+        Add Photo
+      </button>
     `;
 
-    $('addFirstGallery')
-      ?.addEventListener(
-        'click',
-        addGallery
-      );
+    $('emptyAddGallery')?.addEventListener(
+      'click',
+      addGallery
+    );
 
     return;
   }
 
-  container.innerHTML = items.map((item, index) => `
-    <div
-      class="admin-card gallery-card"
-      data-gallery-index="${index}">
+  container.innerHTML = items
+    .map(
+      (item, index) => `
+        <div
+          class="admin-card gallery-card"
+          data-index="${index}"
+        >
 
-      <div class="admin-card-header">
+          <label>
+            Photo Title
+            <input
+              class="gallery-title"
+              type="text"
+              value="${esc(item.title || '')}"
+              placeholder="Example: Front Yard Mowing"
+            >
+          </label>
 
-        <strong>
-          Photo ${index + 1}
-        </strong>
+          <label>
+            Sort Order
+            <input
+              class="gallery-sort"
+              type="number"
+              value="${Number(item.sort_order || index + 1)}"
+            >
+          </label>
 
-        <button
-          type="button"
-          class="danger delete-gallery">
-          Delete Photo
-        </button>
+          <div class="gallery-preview">
+            ${
+              item.image_url
+                ? `<img
+                    src="${esc(item.image_url)}"
+                    alt="${esc(item.title || 'Our Work')}"
+                  >`
+                : '<div class="empty-preview">No photo selected</div>'
+            }
+          </div>
 
-      </div>
+          <input
+            class="gallery-file"
+            type="file"
+            accept="image/*"
+          >
 
-      <label>
-        Photo Title
+          <input
+            class="gallery-url"
+            type="hidden"
+            value="${esc(item.image_url || '')}"
+          >
 
-        <input
-          type="text"
-          class="gallery-title"
-          value="${esc(item.title || '')}"
-          placeholder="Example: Front yard cleanup">
-      </label>
+          <div class="gallery-actions">
+            <button
+              type="button"
+              class="upload-gallery"
+              data-index="${index}"
+            >
+              ${
+                item.image_url
+                  ? 'Replace Photo'
+                  : 'Upload Photo'
+              }
+            </button>
 
-      <label>
-        Sort Order
+            <button
+              type="button"
+              class="danger delete-gallery"
+              data-index="${index}"
+            >
+              Delete Photo
+            </button>
+          </div>
 
-        <input
-          type="number"
-          class="gallery-order"
-          value="${Number(item.sort_order) || index + 1}"
-          min="0">
-      </label>
+          <div class="gallery-status"></div>
 
-      <div class="gallery-preview">
-
-        <img
-          class="gallery-image-preview"
-          src="${esc(item.image_url || '')}"
-          alt="${esc(item.title || 'Our Work photo')}">
-
-      </div>
-
-      <label>
-        Choose Photo
-
-        <input
-          type="file"
-          class="gallery-file"
-          accept="image/*">
-      </label>
-
-      <input
-        type="hidden"
-        class="gallery-url"
-        value="${esc(item.image_url || '')}">
-
-      <div class="gallery-actions">
-
-        <button
-          type="button"
-          class="upload-gallery">
-          Upload / Replace Photo
-        </button>
-
-        <button
-          type="button"
-          class="danger delete-gallery">
-          Delete Photo
-        </button>
-
-      </div>
-
-      <div class="gallery-status"></div>
-
-    </div>
-  `).join('');
+        </div>
+      `
+    )
+    .join('');
 
   attachGalleryButtons();
 }
 
 function attachGalleryButtons() {
-  const container = $('galleryList');
-
-  if (!container) {
-    return;
-  }
-
-  container
+  document
     .querySelectorAll('.upload-gallery')
     .forEach(button => {
-
-      button.addEventListener(
-        'click',
-        () => {
-
-          const card =
-            button.closest('.gallery-card');
-
-          if (!card) {
-            return;
-          }
-
-          const cards =
-            [...container.querySelectorAll(
-              '.gallery-card'
-            )];
-
-          const index =
-            cards.indexOf(card);
-
-          if (index >= 0) {
-            uploadGalleryImage(index);
-          }
-        }
-      );
+      button.addEventListener('click', () => {
+        uploadGalleryImage(
+          Number(button.dataset.index)
+        );
+      });
     });
 
-  container
+  document
     .querySelectorAll('.delete-gallery')
     .forEach(button => {
-
-      button.addEventListener(
-        'click',
-        () => {
-
-          const card =
-            button.closest('.gallery-card');
-
-          if (!card) {
-            return;
-          }
-
-          const cards =
-            [...container.querySelectorAll(
-              '.gallery-card'
-            )];
-
-          const index =
-            cards.indexOf(card);
-
-          if (index >= 0) {
-            deleteGalleryImage(index);
-          }
-        }
-      );
-    });
-
-  container
-    .querySelectorAll('.gallery-file')
-    .forEach(input => {
-
-      input.addEventListener(
-        'change',
-        () => {
-
-          const file =
-            input.files?.[0];
-
-          if (!file) {
-            return;
-          }
-
-          const card =
-            input.closest('.gallery-card');
-
-          if (!card) {
-            return;
-          }
-
-          const preview =
-            card.querySelector(
-              '.gallery-image-preview'
-            );
-
-          if (preview) {
-            preview.src =
-              URL.createObjectURL(file);
-
-            preview.style.display = '';
-          }
-
-          const placeholder =
-            card.querySelector(
-              '.gallery-placeholder'
-            );
-
-          if (placeholder) {
-            placeholder.style.display =
-              'none';
-          }
-        }
-      );
+      button.addEventListener('click', () => {
+        deleteGalleryImage(
+          Number(button.dataset.index)
+        );
+      });
     });
 }
 
 function addGallery() {
   const container = $('galleryList');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
-  const empty =
-    container.querySelector('.gallery-empty');
+  const card = document.createElement('div');
 
-  if (empty) {
-    empty.remove();
-  }
+  card.className = 'admin-card gallery-card';
 
-  const card =
-    document.createElement('div');
-
-  card.className =
-    'admin-card gallery-card';
+  card.dataset.index =
+    document.querySelectorAll('.gallery-card').length;
 
   card.innerHTML = `
-    <div class="admin-card-header">
-
-      <strong>
-        New Photo
-      </strong>
-
-      <button
-        type="button"
-        class="danger remove-unsaved-gallery">
-        Remove
-      </button>
-
-    </div>
-
     <label>
       Photo Title
-
       <input
-        type="text"
         class="gallery-title"
-        placeholder="Example: Front yard cleanup">
+        type="text"
+        placeholder="Example: Front Yard Mowing"
+      >
     </label>
 
     <label>
       Sort Order
-
       <input
+        class="gallery-sort"
         type="number"
-        class="gallery-order"
         value="1"
-        min="0">
+      >
     </label>
 
     <div class="gallery-preview">
-
-      <div class="gallery-placeholder">
-        Choose a photo below
+      <div class="empty-preview">
+        No photo selected
       </div>
-
-      <img
-        class="gallery-image-preview"
-        style="display:none"
-        alt="Our Work photo preview">
-
     </div>
 
-    <label>
-      Choose Photo
-
-      <input
-        type="file"
-        class="gallery-file"
-        accept="image/*">
-    </label>
+    <input
+      class="gallery-file"
+      type="file"
+      accept="image/*"
+    >
 
     <input
-      type="hidden"
       class="gallery-url"
-      value="">
+      type="hidden"
+      value=""
+    >
 
     <div class="gallery-actions">
+      <button
+        type="button"
+        class="upload-gallery"
+      >
+        Upload Photo
+      </button>
 
       <button
         type="button"
-        class="upload-gallery">
-        Upload / Replace Photo
+        class="danger delete-gallery"
+      >
+        Delete Photo
       </button>
-
     </div>
 
     <div class="gallery-status"></div>
   `;
 
-  card
-    .querySelector('.gallery-file')
-    .addEventListener(
-      'change',
-      () => {
-
-        const file =
-          card.querySelector(
-            '.gallery-file'
-          )?.files?.[0];
-
-        if (!file) {
-          return;
-        }
-
-        const preview =
-          card.querySelector(
-            '.gallery-image-preview'
-          );
-
-        const placeholder =
-          card.querySelector(
-            '.gallery-placeholder'
-          );
-
-        if (preview) {
-          preview.src =
-            URL.createObjectURL(file);
-
-          preview.style.display = '';
-        }
-
-        if (placeholder) {
-          placeholder.style.display =
-            'none';
-        }
-      }
-    );
+  container.appendChild(card);
 
   card
     .querySelector('.upload-gallery')
-    .addEventListener(
-      'click',
-      () => {
+    ?.addEventListener('click', () => {
+      const cards = [
+        ...document.querySelectorAll('.gallery-card')
+      ];
 
-        const cards =
-          [...container.querySelectorAll(
-            '.gallery-card'
-          )];
-
-        const index =
-          cards.indexOf(card);
-
-        if (index >= 0) {
-          uploadGalleryImage(index);
-        }
-      }
-    );
+      uploadGalleryImage(cards.indexOf(card));
+    });
 
   card
-    .querySelector('.remove-unsaved-gallery')
-    .addEventListener(
-      'click',
-      () => {
-
-        card.remove();
-
-        if (!container.querySelector(
-          '.gallery-card'
-        )) {
-          renderGallery([]);
-        }
-      }
-    );
-
-  container.appendChild(card);
+    .querySelector('.delete-gallery')
+    ?.addEventListener('click', () => {
+      card.remove();
+    });
 }
 
 function collectGallery() {
-  const container = $('galleryList');
-
-  if (!container) {
-    return [];
-  }
-
-  return [...container.querySelectorAll(
-    '.gallery-card'
-  )]
-    .map(card => ({
+  return [...document.querySelectorAll('.gallery-card')]
+    .map((card, index) => ({
       title:
-        card.querySelector('.gallery-title')
-          ?.value.trim() || '',
-
+        card.querySelector('.gallery-title')?.value.trim() ||
+        '',
       image_url:
-        card.querySelector('.gallery-url')
-          ?.value.trim() || '',
-
+        card.querySelector('.gallery-url')?.value.trim() ||
+        '',
       sort_order:
         Number(
-          card.querySelector('.gallery-order')
-            ?.value
-        ) || 0
+          card.querySelector('.gallery-sort')?.value
+        ) || index + 1
     }))
     .filter(item => item.image_url);
 }
 
-
-/* =========================================================
-   STORAGE HELPERS
-========================================================= */
-
 function getStoragePathFromPublicUrl(url) {
-  if (!url) {
+  if (!url) return null;
+
+  const marker =
+    `/storage/v1/object/public/${GALLERY_BUCKET}/`;
+
+  const index = url.indexOf(marker);
+
+  if (index === -1) {
     return null;
   }
 
-  try {
-
-    const marker =
-      `/storage/v1/object/public/${GALLERY_BUCKET}/`;
-
-    const index =
-      url.indexOf(marker);
-
-    if (index === -1) {
-      return null;
-    }
-
-    return decodeURIComponent(
-      url.slice(
-        index + marker.length
-      )
-    );
-
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
+  return decodeURIComponent(
+    url.substring(index + marker.length)
+  );
 }
 
-
-/* =========================================================
-   UPLOAD PHOTO
-========================================================= */
-
 async function uploadGalleryImage(index) {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to upload photos.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
-  const container = $('galleryList');
-
-  if (!container) {
-    return;
-  }
-
-  const cards =
-    [...container.querySelectorAll(
-      '.gallery-card'
-    )];
+  const cards = [
+    ...document.querySelectorAll('.gallery-card')
+  ];
 
   const card = cards[index];
 
@@ -1103,28 +682,21 @@ async function uploadGalleryImage(index) {
     return;
   }
 
-  const file =
-    card.querySelector(
-      '.gallery-file'
-    )?.files?.[0];
-
-  const status =
-    card.querySelector(
-      '.gallery-status'
-    );
+  const fileInput =
+    card.querySelector('.gallery-file');
 
   const urlInput =
-    card.querySelector(
-      '.gallery-url'
-    );
+    card.querySelector('.gallery-url');
 
   const preview =
-    card.querySelector(
-      '.gallery-image-preview'
-    );
+    card.querySelector('.gallery-preview');
+
+  const status =
+    card.querySelector('.gallery-status');
+
+  const file = fileInput?.files?.[0];
 
   if (!file) {
-
     if (status) {
       status.textContent =
         'Choose a photo first.';
@@ -1134,20 +706,18 @@ async function uploadGalleryImage(index) {
   }
 
   if (!file.type.startsWith('image/')) {
-
     if (status) {
       status.textContent =
-        'Please choose an image file.';
+        'Please select an image file.';
     }
 
     return;
   }
 
   if (file.size > 10 * 1024 * 1024) {
-
     if (status) {
       status.textContent =
-        'Photo must be 10 MB or smaller.';
+        'Image must be 10 MB or smaller.';
     }
 
     return;
@@ -1158,315 +728,224 @@ async function uploadGalleryImage(index) {
       'Uploading photo...';
   }
 
-  try {
+  const oldUrl =
+    urlInput?.value.trim() || '';
 
-    const oldUrl =
-      urlInput?.value || '';
+  const filePath =
+    createGalleryFileName(file);
 
-    const filePath =
-      createGalleryFileName(file);
-
-    const {
-      error: uploadError
-    } = await sb.storage
+  const { error: uploadError } =
+    await sb.storage
       .from(GALLERY_BUCKET)
-      .upload(
-        filePath,
-        file,
-        {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type
-        }
-      );
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
-    if (uploadError) {
-      throw uploadError;
+  if (uploadError) {
+    console.error(uploadError);
+
+    if (status) {
+      status.textContent =
+        `Upload failed: ${uploadError.message}`;
     }
 
-    const { data } =
-      sb.storage
+    return;
+  }
+
+  const {
+    data: publicData
+  } = sb.storage
+    .from(GALLERY_BUCKET)
+    .getPublicUrl(filePath);
+
+  const publicUrl =
+    publicData?.publicUrl || '';
+
+  if (!publicUrl) {
+    if (status) {
+      status.textContent =
+        'Photo uploaded, but its public URL could not be created.';
+    }
+
+    return;
+  }
+
+  if (urlInput) {
+    urlInput.value = publicUrl;
+  }
+
+  if (preview) {
+    preview.innerHTML = `
+      <img
+        src="${esc(publicUrl)}"
+        alt="Our Work photo"
+      >
+    `;
+  }
+
+  /*
+    Remove the previous storage file after
+    the replacement has successfully uploaded.
+  */
+  if (oldUrl) {
+    const oldPath =
+      getStoragePathFromPublicUrl(oldUrl);
+
+    if (oldPath) {
+      await sb.storage
         .from(GALLERY_BUCKET)
-        .getPublicUrl(filePath);
-
-    const publicUrl =
-      data?.publicUrl;
-
-    if (!publicUrl) {
-      throw new Error(
-        'Supabase did not return a public image URL.'
-      );
+        .remove([oldPath]);
     }
+  }
 
-    if (urlInput) {
-      urlInput.value =
-        publicUrl;
-    }
-
-    if (preview) {
-      preview.src =
-        publicUrl;
-
-      preview.style.display =
-        '';
-    }
-
-    /*
-      Remove the old image after the
-      replacement successfully uploads.
-    */
-
-    if (
-      oldUrl &&
-      oldUrl !== publicUrl
-    ) {
-
-      const oldPath =
-        getStoragePathFromPublicUrl(
-          oldUrl
-        );
-
-      if (oldPath) {
-
-        const {
-          error: removeError
-        } = await sb.storage
-          .from(GALLERY_BUCKET)
-          .remove([oldPath]);
-
-        if (removeError) {
-          console.warn(
-            'Old photo could not be removed:',
-            removeError
-          );
-        }
-      }
-    }
-
-    if (status) {
-      status.textContent =
-        'Photo uploaded. Click "Save Gallery" to publish it.';
-    }
-
-    setStatus(
-      'Photo uploaded successfully.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    if (status) {
-      status.textContent =
-        err.message ||
-        'Photo upload failed.';
-    }
-
-    setStatus(
-      err.message ||
-      'Photo upload failed.',
-      'error'
-    );
+  if (status) {
+    status.textContent =
+      'Photo uploaded. Click Save Gallery to publish the change.';
   }
 }
 
-
-/* =========================================================
-   DELETE PHOTO
-========================================================= */
-
 async function deleteGalleryImage(index) {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to delete photos.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
-  const container = $('galleryList');
-
-  if (!container) {
-    return;
-  }
-
-  const cards =
-    [...container.querySelectorAll(
-      '.gallery-card'
-    )];
+  const cards = [
+    ...document.querySelectorAll('.gallery-card')
+  ];
 
   const card = cards[index];
 
-  if (!card) {
-    return;
-  }
-
-  const url =
-    card.querySelector(
-      '.gallery-url'
-    )?.value.trim() || '';
+  if (!card) return;
 
   const title =
-    card.querySelector(
-      '.gallery-title'
-    )?.value.trim() ||
-    'this photo';
+    card.querySelector('.gallery-title')
+      ?.value.trim() || 'this photo';
 
-  const confirmed = confirm(
-    `Delete "${title}"?\n\nThis will remove the photo from the Our Work gallery.`
-  );
+  const confirmed =
+    confirm(
+      `Delete "${title}"? This cannot be undone.`
+    );
 
   if (!confirmed) {
     return;
   }
 
-  setStatus(
-    'Deleting photo...'
-  );
+  const imageUrl =
+    card.querySelector('.gallery-url')
+      ?.value.trim() || '';
 
-  try {
+  const storagePath =
+    getStoragePathFromPublicUrl(imageUrl);
 
-    if (url) {
+  if (storagePath) {
+    const { error } =
+      await sb.storage
+        .from(GALLERY_BUCKET)
+        .remove([storagePath]);
 
-      const path =
-        getStoragePathFromPublicUrl(
-          url
-        );
-
-      if (path) {
-
-        const {
-          error: storageError
-        } = await sb.storage
-          .from(GALLERY_BUCKET)
-          .remove([path]);
-
-        if (storageError) {
-          console.warn(
-            'Storage file could not be removed:',
-            storageError
-          );
-        }
-      }
-
-      const {
-        error: dbError
-      } = await sb
-        .from('gallery')
-        .delete()
-        .eq('image_url', url);
-
-      if (dbError) {
-        throw dbError;
-      }
+    if (error) {
+      console.error(
+        'Storage delete error:',
+        error
+      );
     }
-
-    card.remove();
-
-    if (!container.querySelector(
-      '.gallery-card'
-    )) {
-      renderGallery([]);
-    }
-
-    setStatus(
-      'Photo deleted.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not delete the photo.',
-      'error'
-    );
   }
+
+  /*
+    Remove the database row immediately if
+    this gallery item already exists.
+  */
+  if (imageUrl) {
+    const { error } = await sb
+      .from('gallery')
+      .delete()
+      .eq('image_url', imageUrl);
+
+    if (error) {
+      console.error(error);
+
+      setStatus(
+        `Photo file deleted, but database removal failed: ${error.message}`,
+        'error'
+      );
+
+      return;
+    }
+  }
+
+  card.remove();
+
+  setStatus(
+    'Photo deleted.',
+    'success'
+  );
 }
 
-
-/* =========================================================
-   SAVE GALLERY
-========================================================= */
-
 async function saveGallery() {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to save the gallery.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
-  const gallery =
-    collectGallery();
+  const gallery = collectGallery();
 
-  setStatus(
-    'Saving gallery...'
-  );
+  setStatus('Saving gallery...');
 
-  try {
-
-    const {
-      error: deleteError
-    } = await sb
+  const { error: deleteError } =
+    await sb
       .from('gallery')
       .delete()
       .neq('id', 0);
 
-    if (deleteError) {
-      throw deleteError;
-    }
+  if (deleteError) {
+    console.error(deleteError);
 
-    if (gallery.length) {
+    setStatus(
+      `Could not clear existing gallery: ${deleteError.message}`,
+      'error'
+    );
 
-      const {
-        error: insertError
-      } = await sb
+    return;
+  }
+
+  if (gallery.length) {
+    const { error } =
+      await sb
         .from('gallery')
         .insert(gallery);
 
-      if (insertError) {
-        throw insertError;
-      }
+    if (error) {
+      console.error(error);
+
+      setStatus(
+        `Could not save gallery: ${error.message}`,
+        'error'
+      );
+
+      return;
     }
-
-    setStatus(
-      'Our Work gallery saved successfully.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not save the gallery.',
-      'error'
-    );
   }
+
+  setStatus(
+    'Gallery saved successfully.',
+    'success'
+  );
+
+  await loadAll();
 }
 
-
-/* =========================================================
+/* -----------------------------
    REVIEWS
-========================================================= */
+----------------------------- */
 
 function renderReviews(items = []) {
   const container = $('reviewsList');
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   if (!items.length) {
-
     container.innerHTML = `
       <div class="empty-state">
         No reviews have been added yet.
@@ -1476,235 +955,149 @@ function renderReviews(items = []) {
     return;
   }
 
-  container.innerHTML =
-    items.map((item, index) => `
+  container.innerHTML = items
+    .map(
+      (item, index) => `
+        <div
+          class="admin-card review-card"
+          data-index="${index}"
+        >
 
-      <div
-        class="admin-card review-card">
+          <label>
+            Customer Name
+            <input
+              class="review-name"
+              type="text"
+              value="${esc(item.name || '')}"
+            >
+          </label>
 
-        <div class="admin-card-header">
+          <label>
+            Review
+            <textarea class="review-text">${esc(
+              item.review || ''
+            )}</textarea>
+          </label>
 
-          <strong>
-            Review ${index + 1}
-          </strong>
+          <label>
+            Rating
+            <input
+              class="review-rating"
+              type="number"
+              min="1"
+              max="5"
+              value="${Number(item.rating || 5)}"
+            >
+          </label>
 
           <button
             type="button"
-            class="danger remove-review">
+            class="danger delete-review"
+            data-index="${index}"
+          >
             Delete Review
           </button>
 
         </div>
-
-        <label>
-          Customer Name
-
-          <input
-            type="text"
-            class="review-name"
-            value="${esc(item.name || '')}"
-            placeholder="Customer name">
-        </label>
-
-        <label>
-          Review
-
-          <textarea
-            class="review-text"
-            rows="4"
-            placeholder="Customer review">${esc(item.text || '')}</textarea>
-        </label>
-
-        <label>
-          Rating
-
-          <input
-            type="number"
-            class="review-rating"
-            min="1"
-            max="5"
-            value="${Number(item.rating) || 5}">
-        </label>
-
-      </div>
-
-    `).join('');
+      `
+    )
+    .join('');
 
   attachReviewDeleteButtons();
 }
 
 function attachReviewDeleteButtons() {
-  const container =
-    $('reviewsList');
-
-  if (!container) {
-    return;
-  }
-
-  container
-    .querySelectorAll('.remove-review')
+  document
+    .querySelectorAll('.delete-review')
     .forEach(button => {
+      button.addEventListener('click', () => {
+        const card =
+          button.closest('.review-card');
 
-      button.addEventListener(
-        'click',
-        () => {
-
-          const card =
-            button.closest(
-              '.review-card'
-            );
-
-          if (!card) {
-            return;
-          }
-
-          const name =
-            card.querySelector(
-              '.review-name'
-            )?.value.trim() ||
-            'this review';
-
-          const confirmed =
-            confirm(
-              `Delete "${name}"'s review?\n\nThis will remove it from the reviews you manage.`
-            );
-
-          if (!confirmed) {
-            return;
-          }
-
+        if (card) {
           card.remove();
-
-          if (!container.querySelector(
-            '.review-card'
-          )) {
-            container.innerHTML = `
-              <div class="empty-state">
-                No reviews have been added yet.
-              </div>
-            `;
-          }
-
-          setStatus(
-            'Review removed from the dashboard. Click "Save Reviews" to apply the change.',
-            'success'
-          );
         }
-      );
+      });
     });
 }
 
 function collectReviews() {
-  const container =
-    $('reviewsList');
-
-  if (!container) {
-    return [];
-  }
-
-  return [...container.querySelectorAll(
-    '.review-card'
-  )]
+  return [...document.querySelectorAll('.review-card')]
     .map(card => ({
       name:
-        card.querySelector(
-          '.review-name'
-        )?.value.trim() || '',
+        card.querySelector('.review-name')
+          ?.value.trim() || '',
 
-      text:
-        card.querySelector(
-          '.review-text'
-        )?.value.trim() || '',
+      review:
+        card.querySelector('.review-text')
+          ?.value.trim() || '',
 
       rating:
         Number(
-          card.querySelector(
-            '.review-rating'
-          )?.value
+          card.querySelector('.review-rating')
+            ?.value
         ) || 5
     }))
-    .filter(review =>
-      review.name &&
-      review.text
-    );
+    .filter(item => item.name && item.review);
 }
 
 async function saveReviews() {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to save reviews.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
-  const reviews =
-    collectReviews();
+  const reviews = collectReviews();
 
-  setStatus(
-    'Saving reviews...'
-  );
+  setStatus('Saving reviews...');
 
-  try {
-
-    const {
-      error: deleteError
-    } = await sb
+  const { error: deleteError } =
+    await sb
       .from('reviews')
       .delete()
       .neq('id', 0);
 
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    if (reviews.length) {
-
-      const {
-        error: insertError
-      } = await sb
-        .from('reviews')
-        .insert(reviews);
-
-      if (insertError) {
-        throw insertError;
-      }
-    }
+  if (deleteError) {
+    console.error(deleteError);
 
     setStatus(
-      'Reviews saved successfully.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not save reviews.',
+      `Could not clear existing reviews: ${deleteError.message}`,
       'error'
     );
-  }
-}
 
-function addReview() {
-  const container =
-    $('reviewsList');
-
-  if (!container) {
     return;
   }
 
-  const empty =
-    container.querySelector(
-      '.empty-state'
-    );
+  if (reviews.length) {
+    const { error } =
+      await sb
+        .from('reviews')
+        .insert(reviews);
 
-  if (empty) {
-    empty.remove();
+    if (error) {
+      console.error(error);
+
+      setStatus(
+        `Could not save reviews: ${error.message}`,
+        'error'
+      );
+
+      return;
+    }
   }
+
+  setStatus(
+    'Reviews saved successfully.',
+    'success'
+  );
+
+  await loadAll();
+}
+
+function addReview() {
+  const container = $('reviewsList');
+
+  if (!container) return;
 
   const card =
     document.createElement('div');
@@ -1713,110 +1106,84 @@ function addReview() {
     'admin-card review-card';
 
   card.innerHTML = `
-
-    <div class="admin-card-header">
-
-      <strong>
-        New Review
-      </strong>
-
-      <button
-        type="button"
-        class="danger remove-review">
-        Delete Review
-      </button>
-
-    </div>
-
     <label>
       Customer Name
-
       <input
-        type="text"
         class="review-name"
-        placeholder="Customer name">
+        type="text"
+        placeholder="Customer name"
+      >
     </label>
 
     <label>
       Review
-
       <textarea
         class="review-text"
-        rows="4"
-        placeholder="Customer review"></textarea>
+        placeholder="Customer review"
+      ></textarea>
     </label>
 
     <label>
       Rating
-
       <input
-        type="number"
         class="review-rating"
+        type="number"
         min="1"
         max="5"
-        value="5">
+        value="5"
+      >
     </label>
+
+    <button
+      type="button"
+      class="danger delete-review"
+    >
+      Delete Review
+    </button>
   `;
-
-  card
-    .querySelector('.remove-review')
-    .addEventListener(
-      'click',
-      () => {
-
-        const confirmed =
-          confirm(
-            'Remove this review?'
-          );
-
-        if (confirmed) {
-          card.remove();
-        }
-      }
-    );
 
   container.appendChild(card);
 
-  card.querySelector(
-    '.review-name'
-  )?.focus();
-
-  setStatus(
-    'New review added. Fill it out and save your reviews.',
-    'success'
-  );
+  card
+    .querySelector('.delete-review')
+    ?.addEventListener('click', () => {
+      card.remove();
+    });
 }
 
-
-/* =========================================================
+/* -----------------------------
    SITE SETTINGS
-========================================================= */
+----------------------------- */
 
 function renderSettings(settings = {}) {
+  const googleReviewUrl =
+    $('googleReviewUrl');
 
-  if ($('googleReviewUrl')) {
-    $('googleReviewUrl').value =
+  const leaveReviewUrl =
+    $('leaveReviewUrl');
+
+  const serviceAreaText =
+    $('serviceAreaText');
+
+  if (googleReviewUrl) {
+    googleReviewUrl.value =
       settings.google_review_url || '';
   }
 
-  if ($('leaveReviewUrl')) {
-    $('leaveReviewUrl').value =
+  if (leaveReviewUrl) {
+    leaveReviewUrl.value =
       settings.leave_review_url || '';
   }
 
-  if ($('serviceAreaText')) {
-    $('serviceAreaText').value =
+  if (serviceAreaText) {
+    serviceAreaText.value =
       settings.service_area_text || '';
   }
 }
 
 async function saveSettings() {
-  if (!sb || !user || !isOwner(user)) {
-    setStatus(
-      'You are not authorized to save settings.',
-      'error'
-    );
-
+  if (!user || !isOwner(user)) {
+    setStatus('You are not authorized.', 'error');
     return;
   }
 
@@ -1836,455 +1203,348 @@ async function saveSettings() {
         ?.value.trim() || ''
   };
 
-  setStatus(
-    'Saving site settings...'
-  );
+  setStatus('Saving site settings...');
 
-  try {
-
-    const {
-      error
-    } = await sb
+  const { error } =
+    await sb
       .from('site_settings')
       .upsert(settings);
 
-    if (error) {
-      throw error;
-    }
+  if (error) {
+    console.error(error);
 
     setStatus(
-      'Site settings saved successfully.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not save site settings.',
+      `Could not save site settings: ${error.message}`,
       'error'
     );
+
+    return;
   }
+
+  setStatus(
+    'Site settings saved successfully.',
+    'success'
+  );
 }
 
-
-/* =========================================================
-   LOAD EXISTING WEBSITE DATA
-========================================================= */
+/* -----------------------------
+   LOAD EVERYTHING
+----------------------------- */
 
 async function loadAll() {
   if (!sb || !user || !isOwner(user)) {
     return;
   }
 
-  setStatus(
-    'Loading your website data...'
-  );
+  setStatus('Loading your site data...');
 
-  try {
+  const [
+    servicesResult,
+    galleryResult,
+    reviewsResult,
+    settingsResult
+  ] = await Promise.all([
+    sb
+      .from('services')
+      .select('*')
+      .order('id', {
+        ascending: true
+      }),
 
-    const [
-      servicesResult,
-      galleryResult,
-      reviewsResult,
-      settingsResult
-    ] = await Promise.all([
+    sb
+      .from('gallery')
+      .select('*')
+      .order('sort_order', {
+        ascending: true
+      }),
 
-      sb
-        .from('services')
-        .select('*')
-        .order('id', {
-          ascending: true
-        }),
+    sb
+      .from('reviews')
+      .select('*')
+      .order('id', {
+        ascending: true
+      }),
 
-      sb
-        .from('gallery')
-        .select('*')
-        .order('sort_order', {
-          ascending: true
-        }),
+    sb
+      .from('site_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle()
+  ]);
 
-      sb
-        .from('reviews')
-        .select('*')
-        .order('id', {
-          ascending: true
-        }),
-
-      sb
-        .from('site_settings')
-        .select('*')
-        .eq('id', 1)
-        .maybeSingle()
-    ]);
-
-    if (servicesResult.error) {
-      throw servicesResult.error;
-    }
-
-    if (galleryResult.error) {
-      throw galleryResult.error;
-    }
-
-    if (reviewsResult.error) {
-      throw reviewsResult.error;
-    }
-
-    if (settingsResult.error) {
-      throw settingsResult.error;
-    }
-
-    /*
-      IMPORTANT:
-
-      Existing Supabase data is always used first.
-
-      The default services are ONLY displayed when
-      there are no services in the database yet.
-    */
-
-    const services =
-      servicesResult.data?.length
-        ? servicesResult.data
-        : defaultServices;
-
-    const gallery =
-      galleryResult.data || [];
-
-    const reviews =
-      reviewsResult.data || [];
-
-    const settings =
-      settingsResult.data || {};
-
-    renderServices(
-      services
-    );
-
-    renderGallery(
-      gallery
-    );
-
-    renderReviews(
-      reviews
-    );
-
-    renderSettings(
-      settings
-    );
-
-    setStatus(
-      'Website data loaded.',
-      'success'
-    );
-
-  } catch (err) {
-
-    console.error(err);
-
-    setStatus(
-      err.message ||
-      'Could not load your website data.',
-      'error'
+  if (servicesResult.error) {
+    console.error(
+      'Services:',
+      servicesResult.error
     );
   }
+
+  if (galleryResult.error) {
+    console.error(
+      'Gallery:',
+      galleryResult.error
+    );
+  }
+
+  if (reviewsResult.error) {
+    console.error(
+      'Reviews:',
+      reviewsResult.error
+    );
+  }
+
+  if (settingsResult.error) {
+    console.error(
+      'Settings:',
+      settingsResult.error
+    );
+  }
+
+  /*
+    Existing Supabase data is always used first.
+    Defaults are only used when the services table
+    has no services yet.
+  */
+  const services =
+    servicesResult.data?.length
+      ? servicesResult.data
+      : defaultServices;
+
+  const gallery =
+    galleryResult.data || [];
+
+  const reviews =
+    reviewsResult.data || defaultReviews;
+
+  const settings =
+    settingsResult.data || {};
+
+  renderServices(services);
+  renderGallery(gallery);
+  renderReviews(reviews);
+  renderSettings(settings);
+
+  setStatus('');
 }
 
-
-/* =========================================================
-   EVENT LISTENERS
-========================================================= */
+/* -----------------------------
+   BUTTONS / EVENTS
+----------------------------- */
 
 function setupEventListeners() {
+  $('signInBtn')?.addEventListener(
+    'click',
+    signIn
+  );
 
-  /*
-    Login
-  */
+  $('loginForm')?.addEventListener(
+    'submit',
+    event => {
+      event.preventDefault();
+      signIn();
+    }
+  );
 
-  $('signInBtn')
-    ?.addEventListener(
-      'click',
-      signIn
-    );
-
-  $('loginForm')
-    ?.addEventListener(
-      'submit',
-      event => {
-
+  $('password')?.addEventListener(
+    'keydown',
+    event => {
+      if (event.key === 'Enter') {
         event.preventDefault();
-
         signIn();
       }
-    );
+    }
+  );
 
-  $('password')
-    ?.addEventListener(
-      'keydown',
-      event => {
+  $('signOutBtn')?.addEventListener(
+    'click',
+    signOut
+  );
 
-        if (event.key === 'Enter') {
+  $('saveServices')?.addEventListener(
+    'click',
+    saveServices
+  );
 
-          event.preventDefault();
+  $('addService')?.addEventListener(
+    'click',
+    addService
+  );
 
-          signIn();
-        }
-      }
-    );
+  $('saveGallery')?.addEventListener(
+    'click',
+    saveGallery
+  );
 
+  $('addGallery')?.addEventListener(
+    'click',
+    addGallery
+  );
 
-  /*
-    Logout
-  */
+  $('saveReviews')?.addEventListener(
+    'click',
+    saveReviews
+  );
 
-  $('signOutBtn')
-    ?.addEventListener(
-      'click',
-      signOut
-    );
+  $('addReview')?.addEventListener(
+    'click',
+    addReview
+  );
 
-
-  /*
-    Services
-  */
-
-  $('saveServices')
-    ?.addEventListener(
-      'click',
-      saveServices
-    );
-
-  $('addService')
-    ?.addEventListener(
-      'click',
-      addService
-    );
-
-
-  /*
-    Gallery
-  */
-
-  $('saveGallery')
-    ?.addEventListener(
-      'click',
-      saveGallery
-    );
-
-  $('addGallery')
-    ?.addEventListener(
-      'click',
-      addGallery
-    );
-
-
-  /*
-    Reviews
-  */
-
-  $('saveReviews')
-    ?.addEventListener(
-      'click',
-      saveReviews
-    );
-
-  $('addReview')
-    ?.addEventListener(
-      'click',
-      addReview
-    );
-
-
-  /*
-    Site settings
-  */
-
-  $('saveSettings')
-    ?.addEventListener(
-      'click',
-      saveSettings
-    );
+  $('saveSettings')?.addEventListener(
+    'click',
+    saveSettings
+  );
 }
 
-
-/* =========================================================
-   AUTH STATE LISTENER
-========================================================= */
+/* -----------------------------
+   AUTH STATE
+----------------------------- */
 
 function setupAuthListener() {
-
-  if (!sb) {
-    return;
-  }
+  if (!sb) return;
 
   sb.auth.onAuthStateChange(
-    (event, session) => {
+    async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        user = null;
+        showLogin();
+        return;
+      }
+
+      if (!session?.user) {
+        return;
+      }
 
       /*
-        If signed out, immediately hide the dashboard.
+        Keep the authenticated session if it belongs
+        to the configured owner.
       */
+      if (isOwner(session.user)) {
+        user = session.user;
+        showDashboard();
 
-      if (event === 'SIGNED_OUT') {
-
-        user = null;
-
-        showLogin();
+        /*
+          Don't reload everything unnecessarily on
+          every auth event.
+        */
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'INITIAL_SESSION'
+        ) {
+          await loadAll();
+        }
 
         return;
       }
 
       /*
-        If there is a session, ONLY an owner account
-        is allowed to remain on the dashboard.
+        Any authenticated account that is not the owner
+        is immediately signed out.
       */
+      await sb.auth.signOut();
 
-      if (session?.user) {
+      user = null;
+      showLogin();
 
-        if (!isOwner(session.user)) {
-
-          sb.auth.signOut();
-
-          user = null;
-
-          showLogin();
-
-          setStatus(
-            'This account is not authorized to access the owner dashboard.',
-            'error'
-          );
-
-          return;
-        }
-
-        user = session.user;
-
-        showDashboard();
-      }
+      setStatus(
+        'This account is not authorized to access the admin dashboard.',
+        'error'
+      );
     }
   );
 }
 
-
-/* =========================================================
+/* -----------------------------
    CHECK EXISTING SESSION
-========================================================= */
+   IMPORTANT:
+   DO NOT SIGN OUT ON PAGE LOAD
+----------------------------- */
 
 async function check() {
+  if (!sb) {
+    const initialized =
+      initializeSupabase();
 
-  if (!initializeSupabase()) {
+    if (!initialized) {
+      return;
+    }
+  }
 
-    showSetup();
+  const {
+    data,
+    error
+  } = await sb.auth.getSession();
+
+  if (error) {
+    console.error(
+      'Session error:',
+      error
+    );
+
+    showLogin();
+
+    setStatus(
+      'Could not check your login session.',
+      'error'
+    );
 
     return;
   }
 
-  try {
+  const session =
+    data?.session;
 
-    /*
-      IMPORTANT:
+  /*
+    No session means show the login screen.
+  */
+  if (!session?.user) {
+    user = null;
+    showLogin();
+    return;
+  }
 
-      We check the existing Supabase session.
-      We do NOT sign the user out when the page loads.
-
-      This is what allows your owner login to remain
-      active after refreshing the admin page.
-    */
-
-    const {
-      data,
-      error
-    } = await sb.auth.getSession();
-
-    if (error) {
-      throw error;
-    }
-
-    const session =
-      data?.session;
-
-    /*
-      No session = show the login page.
-    */
-
-    if (!session?.user) {
-
-      user = null;
-
-      showLogin();
-
-      return;
-    }
-
-    /*
-      Session exists, but the account must still
-      be your configured owner account.
-    */
-
-    if (!isOwner(session.user)) {
-
-      await sb.auth.signOut();
-
-      user = null;
-
-      showLogin();
-
-      setStatus(
-        'This account is not authorized to access the owner dashboard.',
-        'error'
-      );
-
-      return;
-    }
-
-    /*
-      Correct authenticated owner.
-    */
-
+  /*
+    Existing session belongs to owner.
+    Keep it instead of signing out.
+  */
+  if (isOwner(session.user)) {
     user = session.user;
 
     showDashboard();
 
     await loadAll();
 
-  } catch (err) {
-
-    console.error(err);
-
-    user = null;
-
-    showLogin();
-
-    setStatus(
-      'Please sign in again.',
-      'error'
-    );
+    return;
   }
+
+  /*
+    Existing session is not the owner.
+  */
+  await sb.auth.signOut();
+
+  user = null;
+
+  showLogin();
+
+  setStatus(
+    'This account is not authorized to access the admin dashboard.',
+    'error'
+  );
 }
 
-
-/* =========================================================
-   START ADMIN
-========================================================= */
+/* -----------------------------
+   START
+----------------------------- */
 
 document.addEventListener(
   'DOMContentLoaded',
   async () => {
-
-    /*
-      Start with the login screen hidden/controlled
-      until authentication has been checked.
-    */
-
     showLogin();
 
     setupEventListeners();
 
     if (!initializeSupabase()) {
-
       showSetup();
-
       return;
     }
 
