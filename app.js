@@ -296,17 +296,40 @@ async function loadSupabaseContent() {
     const settings =
       settingsResult.data;
 
-    if (!servicesResult.error) {
+    /* SERVICES */
+
+    if (
+      !servicesResult.error &&
+      services.length > 0
+    ) {
       renderServices(services);
+    } else {
+      renderServices(DEFAULT_SERVICES);
     }
 
-    if (!galleryResult.error) {
+    /* GALLERY */
+
+    if (
+      !galleryResult.error &&
+      gallery.length > 0
+    ) {
       renderGallery(gallery);
+    } else {
+      renderGallery(DEFAULT_GALLERY);
     }
 
-    if (!reviewsResult.error) {
+    /* REVIEWS */
+
+    if (
+      !reviewsResult.error &&
+      reviews.length > 0
+    ) {
       renderReviews(reviews);
+    } else {
+      renderReviews(DEFAULT_REVIEWS);
     }
+
+    /* SITE SETTINGS */
 
     if (settings) {
       updateGoogleLinks(
@@ -399,8 +422,14 @@ function setupRealtime() {
           .select('*')
           .order('sort_order');
 
-        if (!error) {
-          renderServices(data || []);
+        if (
+          !error &&
+          data &&
+          data.length > 0
+        ) {
+          renderServices(data);
+        } else {
+          renderServices(DEFAULT_SERVICES);
         }
       }
     )
@@ -427,8 +456,14 @@ function setupRealtime() {
           .select('*')
           .order('sort_order');
 
-        if (!error) {
-          renderGallery(data || []);
+        if (
+          !error &&
+          data &&
+          data.length > 0
+        ) {
+          renderGallery(data);
+        } else {
+          renderGallery(DEFAULT_GALLERY);
         }
       }
     )
@@ -455,8 +490,14 @@ function setupRealtime() {
           .select('*')
           .order('sort_order');
 
-        if (!error) {
-          renderReviews(data || []);
+        if (
+          !error &&
+          data &&
+          data.length > 0
+        ) {
+          renderReviews(data);
+        } else {
+          renderReviews(DEFAULT_REVIEWS);
         }
       }
     )
