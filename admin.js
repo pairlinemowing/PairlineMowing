@@ -583,7 +583,7 @@ async function saveServices() {
     for (const item of items) {
 
       const payload = {
-        title: item.title,
+        name: item.title,
         description: item.description,
         sort_order: item.sort_order,
         published: true
