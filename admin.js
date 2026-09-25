@@ -1334,58 +1334,35 @@ async function check() {
 
   if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !C.OWNER_EMAIL) {
     showSetup();
-
     return;
   }
 
   if (!initializeSupabase()) {
     showSetup();
-
     return;
   }
 
+  /*
+    Always require the owner to enter the password
+    when the admin page is opened or reloaded.
+
+    Supabase may have a saved session from a previous
+    login, so we deliberately clear it here.
+  */
   try {
-
-    const {
-      data: { session }
-    } = await sb.auth.getSession();
-
-    if (!session?.user) {
-      user = null;
-      showLogin();
-      return;
-    }
-
-    if (!isOwner(session.user)) {
-      await sb.auth.signOut();
-      user = null;
-      showLogin();
-
-      setStatus(
-        'This account is not authorized to access the owner dashboard.',
-        'error'
-      );
-
-      return;
-    }
-
-    user = session.user;
-
-    showDashboard();
-
-    await loadAll();
-
+    await sb.auth.signOut();
   } catch (err) {
-    console.error(err);
-
-    user = null;
-    showLogin();
-
-    setStatus(
-      'Unable to check your login session.',
-      'error'
-    );
+    console.error('Could not clear previous session:', err);
   }
+
+  user = null;
+  showLogin();
+
+  if ($('passwordInput')) {
+    $('passwordInput').value = '';
+  }
+
+  setStatus('');
 }
 
 
@@ -1408,8 +1385,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     showSetup();
     return;
   }
-
-  setupAuthListener();
-
+  
   await check();
 });
