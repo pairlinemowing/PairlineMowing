@@ -1,5 +1,3 @@
-alert("ADMIN JS LOADED");
-
 const C = window.PAIRLINE_CONFIG || {};
 
 let sb = null;
@@ -201,7 +199,12 @@ async function signIn() {
     if (!isOwner(signedInUser)) {
       await sb.auth.signOut();
       user = null;
-      setStatus('This account is not authorized to access the owner dashboard.', 'error');
+
+      setStatus(
+        'This account is not authorized to access the owner dashboard.',
+        'error'
+      );
+
       return;
     }
 
@@ -316,8 +319,11 @@ function collectServices() {
   const items = [];
 
   document.querySelectorAll('.service-item').forEach(item => {
-    const title = item.querySelector('.service-title')?.value.trim() || '';
-    const description = item.querySelector('.service-description')?.value.trim() || '';
+    const title =
+      item.querySelector('.service-title')?.value.trim() || '';
+
+    const description =
+      item.querySelector('.service-description')?.value.trim() || '';
 
     if (!title) return;
 
@@ -344,7 +350,8 @@ function addService() {
 
   renderServices(current);
 
-  const inputs = editor.querySelectorAll('.service-title');
+  const inputs =
+    editor.querySelectorAll('.service-title');
 
   if (inputs.length) {
     inputs[inputs.length - 1].focus();
@@ -353,7 +360,10 @@ function addService() {
 
 async function saveServices() {
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
@@ -362,27 +372,33 @@ async function saveServices() {
   try {
     setStatus('Saving services...');
 
-    const { error: deleteError } = await sb
-      .from('services')
-      .delete()
-      .neq('id', 0);
+    const { error: deleteError } =
+      await sb
+        .from('services')
+        .delete()
+        .neq('id', 0);
 
     if (deleteError) throw deleteError;
 
     if (services.length) {
-      const { error: insertError } = await sb
-        .from('services')
-        .insert(services);
+      const { error: insertError } =
+        await sb
+          .from('services')
+          .insert(services);
 
       if (insertError) throw insertError;
     }
 
-    setStatus('Services saved.', 'success');
+    setStatus(
+      'Services saved.',
+      'success'
+    );
 
     await loadServices();
 
   } catch (err) {
     console.error(err);
+
     setStatus(
       `Could not save services: ${err.message || 'Unknown error'}`,
       'error'
@@ -391,10 +407,13 @@ async function saveServices() {
 }
 
 async function loadServices() {
-  const { data, error } = await sb
-    .from('services')
-    .select('*')
-    .order('id', { ascending: true });
+  const { data, error } =
+    await sb
+      .from('services')
+      .select('*')
+      .order('id', {
+        ascending: true
+      });
 
   if (error) {
     console.error(error);
@@ -416,6 +435,7 @@ async function loadServices() {
 
 function createGalleryFileName(file) {
   const original = file.name || 'photo';
+
   const extension = original.includes('.')
     ? original.split('.').pop().toLowerCase()
     : 'jpg';
@@ -426,7 +446,8 @@ function createGalleryFileName(file) {
 function getStoragePathFromPublicUrl(url) {
   if (!url) return null;
 
-  const marker = `/storage/v1/object/public/${GALLERY_BUCKET}/`;
+  const marker =
+    `/storage/v1/object/public/${GALLERY_BUCKET}/`;
 
   const index = url.indexOf(marker);
 
@@ -461,6 +482,7 @@ function renderGallery(items) {
 
         <div class="field">
           <label>Photo title</label>
+
           <input
             class="gallery-title"
             type="text"
@@ -470,6 +492,7 @@ function renderGallery(items) {
 
         <div class="field">
           <label>Sort order</label>
+
           <input
             class="gallery-sort"
             type="number"
@@ -487,7 +510,10 @@ function renderGallery(items) {
                   <img
                     class="gallery-preview"
                     src="${esc(item.image_url)}"
-                    alt="${esc(item.title || 'Our Work photo')}"
+                    alt="${esc(
+                      item.title ||
+                      'Our Work photo'
+                    )}"
                     style="
                       display:block;
                       width:100%;
@@ -540,56 +566,82 @@ function renderGallery(items) {
 
       </div>
 
-      <div class="gallery-status muted" style="margin-top:10px"></div>
+      <div
+        class="gallery-status muted"
+        style="margin-top:10px">
+      </div>
 
     </div>
   `).join('');
 
-  editor.querySelectorAll('.upload-gallery').forEach(button => {
-    button.addEventListener('click', () => {
-      const item = button.closest('.gallery-item');
+  editor
+    .querySelectorAll('.upload-gallery')
+    .forEach(button => {
 
-      if (!item) return;
+      button.addEventListener('click', () => {
 
-      const index = [...editor.querySelectorAll('.gallery-item')]
-        .indexOf(item);
+        const item =
+          button.closest('.gallery-item');
 
-      uploadGalleryImage(index);
+        if (!item) return;
+
+        const index = [
+          ...editor.querySelectorAll('.gallery-item')
+        ].indexOf(item);
+
+        uploadGalleryImage(index);
+      });
     });
-  });
 
-  editor.querySelectorAll('.delete-gallery').forEach(button => {
-    button.addEventListener('click', () => {
-      const item = button.closest('.gallery-item');
+  editor
+    .querySelectorAll('.delete-gallery')
+    .forEach(button => {
 
-      if (!item) return;
+      button.addEventListener('click', () => {
 
-      const index = [...editor.querySelectorAll('.gallery-item')]
-        .indexOf(item);
+        const item =
+          button.closest('.gallery-item');
 
-      deleteGalleryImage(index);
+        if (!item) return;
+
+        const index = [
+          ...editor.querySelectorAll('.gallery-item')
+        ].indexOf(item);
+
+        deleteGalleryImage(index);
+      });
     });
-  });
 }
 
 function collectGallery() {
   const items = [];
 
-  document.querySelectorAll('.gallery-item').forEach(item => {
-    const title = item.querySelector('.gallery-title')?.value.trim() || '';
-    const image_url = item.querySelector('.gallery-url')?.value.trim() || '';
-    const sort_order = Number(
-      item.querySelector('.gallery-sort')?.value || 0
-    );
+  document
+    .querySelectorAll('.gallery-item')
+    .forEach(item => {
 
-    if (!image_url) return;
+      const title =
+        item.querySelector('.gallery-title')
+          ?.value.trim() || '';
 
-    items.push({
-      title,
-      image_url,
-      sort_order
+      const image_url =
+        item.querySelector('.gallery-url')
+          ?.value.trim() || '';
+
+      const sort_order =
+        Number(
+          item.querySelector('.gallery-sort')
+            ?.value || 0
+        );
+
+      if (!image_url) return;
+
+      items.push({
+        title,
+        image_url,
+        sort_order
+      });
     });
-  });
 
   return items;
 }
@@ -609,7 +661,8 @@ function addGallery() {
 
   renderGallery(current);
 
-  const items = editor.querySelectorAll('.gallery-item');
+  const items =
+    editor.querySelectorAll('.gallery-item');
 
   if (items.length) {
     items[items.length - 1].scrollIntoView({
@@ -621,62 +674,91 @@ function addGallery() {
 
 async function uploadGalleryImage(index) {
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
-  const items = document.querySelectorAll('.gallery-item');
+  const items =
+    document.querySelectorAll('.gallery-item');
+
   const item = items[index];
 
   if (!item) return;
 
-  const fileInput = item.querySelector('.gallery-file');
-  const urlInput = item.querySelector('.gallery-url');
-  const status = item.querySelector('.gallery-status');
-  const preview = item.querySelector('.gallery-preview');
+  const fileInput =
+    item.querySelector('.gallery-file');
 
-  const file = fileInput?.files?.[0];
+  const urlInput =
+    item.querySelector('.gallery-url');
+
+  const status =
+    item.querySelector('.gallery-status');
+
+  const file =
+    fileInput?.files?.[0];
 
   if (!file) {
     if (status) {
-      status.textContent = 'Choose a photo first.';
-      status.style.color = '#9d2c2c';
+      status.textContent =
+        'Choose a photo first.';
+
+      status.style.color =
+        '#9d2c2c';
     }
+
     return;
   }
 
   if (!file.type.startsWith('image/')) {
     if (status) {
-      status.textContent = 'Please choose an image file.';
-      status.style.color = '#9d2c2c';
+      status.textContent =
+        'Please choose an image file.';
+
+      status.style.color =
+        '#9d2c2c';
     }
+
     return;
   }
 
   if (file.size > 10 * 1024 * 1024) {
     if (status) {
-      status.textContent = 'Photo must be 10 MB or smaller.';
-      status.style.color = '#9d2c2c';
+      status.textContent =
+        'Photo must be 10 MB or smaller.';
+
+      status.style.color =
+        '#9d2c2c';
     }
+
     return;
   }
 
   try {
+
     if (status) {
-      status.textContent = 'Uploading photo...';
+      status.textContent =
+        'Uploading photo...';
+
       status.style.color = '';
     }
 
-    const oldUrl = urlInput?.value || '';
-    const path = createGalleryFileName(file);
+    const oldUrl =
+      urlInput?.value || '';
 
-    const { error: uploadError } = await sb.storage
-      .from(GALLERY_BUCKET)
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type
-      });
+    const path =
+      createGalleryFileName(file);
+
+    const { error: uploadError } =
+      await sb.storage
+        .from(GALLERY_BUCKET)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        });
 
     if (uploadError) {
       throw uploadError;
@@ -684,132 +766,210 @@ async function uploadGalleryImage(index) {
 
     const {
       data: publicData
-    } = sb.storage
-      .from(GALLERY_BUCKET)
-      .getPublicUrl(path);
+    } =
+      sb.storage
+        .from(GALLERY_BUCKET)
+        .getPublicUrl(path);
 
-    const publicUrl = publicData?.publicUrl;
+    const publicUrl =
+      publicData?.publicUrl;
 
     if (!publicUrl) {
-      throw new Error('Could not create the public image URL.');
+      throw new Error(
+        'Could not create the public image URL.'
+      );
     }
 
     if (urlInput) {
-      urlInput.value = publicUrl;
+      urlInput.value =
+        publicUrl;
     }
 
-    let previewEl = item.querySelector('.gallery-preview');
+    let previewEl =
+      item.querySelector('.gallery-preview');
 
     if (!previewEl) {
-      const currentPhotoArea = item.querySelector('.field.full');
+
+      const currentPhotoArea =
+        item.querySelector('.field.full');
 
       if (currentPhotoArea) {
-        const image = document.createElement('img');
 
-        image.className = 'gallery-preview';
+        const image =
+          document.createElement('img');
 
-        image.style.display = 'block';
-        image.style.width = '100%';
-        image.style.maxWidth = '500px';
-        image.style.maxHeight = '300px';
-        image.style.objectFit = 'cover';
-        image.style.borderRadius = '6px';
-        image.style.marginBottom = '10px';
-        image.style.border = '1px solid #d6ddd4';
+        image.className =
+          'gallery-preview';
+
+        image.style.display =
+          'block';
+
+        image.style.width =
+          '100%';
+
+        image.style.maxWidth =
+          '500px';
+
+        image.style.maxHeight =
+          '300px';
+
+        image.style.objectFit =
+          'cover';
+
+        image.style.borderRadius =
+          '6px';
+
+        image.style.marginBottom =
+          '10px';
+
+        image.style.border =
+          '1px solid #d6ddd4';
 
         currentPhotoArea.insertBefore(
           image,
           currentPhotoArea.children[1]
         );
 
-        previewEl = image;
+        previewEl =
+          image;
       }
     }
 
     if (previewEl) {
-      previewEl.src = publicUrl;
+
+      previewEl.src =
+        publicUrl;
+
       previewEl.alt =
-        item.querySelector('.gallery-title')?.value.trim() ||
+        item.querySelector('.gallery-title')
+          ?.value.trim() ||
         'Our Work photo';
     }
 
     /*
-      If replacing an older photo, remove the old
-      storage object after the new upload succeeds.
+      If replacing an older photo,
+      remove the old storage object
+      after the new upload succeeds.
     */
+
     if (oldUrl && oldUrl !== publicUrl) {
-      const oldPath = getStoragePathFromPublicUrl(oldUrl);
+
+      const oldPath =
+        getStoragePathFromPublicUrl(oldUrl);
 
       if (oldPath) {
+
         await sb.storage
           .from(GALLERY_BUCKET)
           .remove([oldPath])
-          .catch(err => console.warn('Old image cleanup failed:', err));
+          .catch(err =>
+            console.warn(
+              'Old image cleanup failed:',
+              err
+            )
+          );
       }
     }
 
     if (status) {
+
       status.textContent =
         'Photo uploaded. Click "Save gallery" to publish it.';
-      status.style.color = '#287719';
-      status.style.fontWeight = '800';
+
+      status.style.color =
+        '#287719';
+
+      status.style.fontWeight =
+        '800';
     }
 
   } catch (err) {
+
     console.error(err);
 
     if (status) {
+
       status.textContent =
-        `Upload failed: ${err.message || 'Unknown error'}`;
-      status.style.color = '#9d2c2c';
-      status.style.fontWeight = '800';
+        `Upload failed: ${
+          err.message ||
+          'Unknown error'
+        }`;
+
+      status.style.color =
+        '#9d2c2c';
+
+      status.style.fontWeight =
+        '800';
     }
   }
 }
 
 async function deleteGalleryImage(index) {
+
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
-  const items = document.querySelectorAll('.gallery-item');
+  const items =
+    document.querySelectorAll('.gallery-item');
+
   const item = items[index];
 
   if (!item) return;
 
   const title =
-    item.querySelector('.gallery-title')?.value.trim() ||
+    item.querySelector('.gallery-title')
+      ?.value.trim() ||
     'this photo';
 
   const url =
-    item.querySelector('.gallery-url')?.value.trim() ||
+    item.querySelector('.gallery-url')
+      ?.value.trim() ||
     '';
 
-  const confirmed = confirm(
-    `Delete "${title}"?\n\nThis will remove the photo from the gallery.`
-  );
+  const confirmed =
+    confirm(
+      `Delete "${title}"?\n\nThis will remove the photo from the gallery.`
+    );
 
   if (!confirmed) return;
 
   try {
-    const path = getStoragePathFromPublicUrl(url);
+
+    const path =
+      getStoragePathFromPublicUrl(url);
 
     if (path) {
-      const { error: storageError } = await sb.storage
-        .from(GALLERY_BUCKET)
-        .remove([path]);
+
+      const {
+        error: storageError
+      } =
+        await sb.storage
+          .from(GALLERY_BUCKET)
+          .remove([path]);
 
       if (storageError) {
-        console.warn('Storage delete failed:', storageError);
+
+        console.warn(
+          'Storage delete failed:',
+          storageError
+        );
       }
     }
 
     if (url) {
-      const { error: dbError } = await sb
-        .from('gallery')
-        .delete()
-        .eq('image_url', url);
+
+      const {
+        error: dbError
+      } =
+        await sb
+          .from('gallery')
+          .delete()
+          .eq('image_url', url);
 
       if (dbError) throw dbError;
     }
@@ -817,69 +977,113 @@ async function deleteGalleryImage(index) {
     await loadGallery();
 
   } catch (err) {
+
     console.error(err);
 
     setStatus(
-      `Could not delete photo: ${err.message || 'Unknown error'}`,
+      `Could not delete photo: ${
+        err.message ||
+        'Unknown error'
+      }`,
       'error'
     );
   }
 }
 
 async function saveGallery() {
+
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
-  const gallery = collectGallery();
+  const gallery =
+    collectGallery();
 
   try {
-    setStatus('Saving gallery...');
 
-    const { error: deleteError } = await sb
-      .from('gallery')
-      .delete()
-      .neq('id', 0);
+    setStatus(
+      'Saving gallery...'
+    );
 
-    if (deleteError) throw deleteError;
-
-    if (gallery.length) {
-      const { error: insertError } = await sb
+    const {
+      error: deleteError
+    } =
+      await sb
         .from('gallery')
-        .insert(gallery);
+        .delete()
+        .neq('id', 0);
 
-      if (insertError) throw insertError;
+    if (deleteError) {
+      throw deleteError;
     }
 
-    setStatus('Gallery saved.', 'success');
+    if (gallery.length) {
+
+      const {
+        error: insertError
+      } =
+        await sb
+          .from('gallery')
+          .insert(gallery);
+
+      if (insertError) {
+        throw insertError;
+      }
+    }
+
+    setStatus(
+      'Gallery saved.',
+      'success'
+    );
 
     await loadGallery();
 
   } catch (err) {
+
     console.error(err);
 
     setStatus(
-      `Could not save gallery: ${err.message || 'Unknown error'}`,
+      `Could not save gallery: ${
+        err.message ||
+        'Unknown error'
+      }`,
       'error'
     );
   }
 }
 
 async function loadGallery() {
-  const { data, error } = await sb
-    .from('gallery')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('id', { ascending: true });
+
+  const {
+    data,
+    error
+  } =
+    await sb
+      .from('gallery')
+      .select('*')
+      .order('sort_order', {
+        ascending: true
+      })
+      .order('id', {
+        ascending: true
+      });
 
   if (error) {
+
     console.error(error);
+
     renderGallery([]);
+
     return;
   }
 
-  renderGallery(data || []);
+  renderGallery(
+    data || []
+  );
 }
 
 
@@ -888,112 +1092,157 @@ async function loadGallery() {
 ------------------------------------------------- */
 
 function renderReviews(items) {
-  const editor = $('reviewsEditor');
+
+  const editor =
+    $('reviewsEditor');
 
   if (!editor) return;
 
   if (!items.length) {
+
     editor.innerHTML = `
       <div class="muted">
         No reviews have been added yet.
       </div>
     `;
+
     return;
   }
 
-  editor.innerHTML = items.map((item, index) => `
-    <div class="list-item review-item" data-index="${index}">
+  editor.innerHTML =
+    items.map((item, index) => `
+      <div
+        class="list-item review-item"
+        data-index="${index}">
 
-      <div class="admin-grid">
+        <div class="admin-grid">
 
-        <div class="field">
-          <label>Customer name</label>
-          <input
-            class="review-name"
-            type="text"
-            value="${esc(item.name || '')}"
-            placeholder="Customer name">
+          <div class="field">
+            <label>Customer name</label>
+
+            <input
+              class="review-name"
+              type="text"
+              value="${esc(item.name || '')}"
+              placeholder="Customer name">
+          </div>
+
+          <div class="field">
+            <label>Rating</label>
+
+            <select class="review-rating">
+
+              ${[5,4,3,2,1].map(rating => `
+                <option
+                  value="${rating}"
+                  ${
+                    Number(item.rating || 5) === rating
+                      ? 'selected'
+                      : ''
+                  }>
+                  ${rating} stars
+                </option>
+              `).join('')}
+
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>Review</label>
+
+            <textarea
+              class="review-text"
+              placeholder="Customer's actual review">${esc(
+                item.text ||
+                item.review ||
+                ''
+              )}</textarea>
+          </div>
+
         </div>
 
-        <div class="field">
-          <label>Rating</label>
-          <select class="review-rating">
-            ${[5,4,3,2,1].map(rating => `
-              <option
-                value="${rating}"
-                ${Number(item.rating || 5) === rating ? 'selected' : ''}>
-                ${rating} stars
-              </option>
-            `).join('')}
-          </select>
-        </div>
+        <div class="admin-actions">
 
-        <div class="field full">
-          <label>Review</label>
-          <textarea
-            class="review-text"
-            placeholder="Customer's actual review">${esc(item.text || item.review || '')}</textarea>
+          <button
+            type="button"
+            class="admin-btn danger delete-review">
+            Delete review
+          </button>
+
         </div>
 
       </div>
+    `).join('');
 
-      <div class="admin-actions">
-        <button
-          type="button"
-          class="admin-btn danger delete-review">
-          Delete review
-        </button>
-      </div>
+  editor
+    .querySelectorAll('.delete-review')
+    .forEach(button => {
 
-    </div>
-  `).join('');
+      button.addEventListener('click', () => {
 
-  editor.querySelectorAll('.delete-review').forEach(button => {
-    button.addEventListener('click', () => {
-      const item = button.closest('.review-item');
+        const item =
+          button.closest('.review-item');
 
-      if (!item) return;
+        if (!item) return;
 
-      item.remove();
+        item.remove();
 
-      if (!editor.querySelector('.review-item')) {
-        renderReviews([]);
-      }
+        if (
+          !editor.querySelector(
+            '.review-item'
+          )
+        ) {
+          renderReviews([]);
+        }
+      });
     });
-  });
 }
 
 function collectReviews() {
+
   const reviews = [];
 
-  document.querySelectorAll('.review-item').forEach(item => {
-    const name =
-      item.querySelector('.review-name')?.value.trim() || '';
+  document
+    .querySelectorAll('.review-item')
+    .forEach(item => {
 
-    const rating =
-      Number(item.querySelector('.review-rating')?.value || 5);
+      const name =
+        item.querySelector('.review-name')
+          ?.value.trim() ||
+        '';
 
-    const text =
-      item.querySelector('.review-text')?.value.trim() || '';
+      const rating =
+        Number(
+          item.querySelector('.review-rating')
+            ?.value || 5
+        );
 
-    if (!text) return;
+      const text =
+        item.querySelector('.review-text')
+          ?.value.trim() ||
+        '';
 
-    reviews.push({
-      name,
-      rating,
-      text
+      if (!text) return;
+
+      reviews.push({
+        name,
+        rating,
+        text
+      });
     });
-  });
 
   return reviews;
 }
 
 function addReview() {
-  const editor = $('reviewsEditor');
+
+  const editor =
+    $('reviewsEditor');
 
   if (!editor) return;
 
-  const current = collectReviews();
+  const current =
+    collectReviews();
 
   current.push({
     name: '',
@@ -1001,68 +1250,116 @@ function addReview() {
     text: ''
   });
 
-  renderReviews(current);
+  renderReviews(
+    current
+  );
 
-  const textareas = editor.querySelectorAll('.review-text');
+  const textareas =
+    editor.querySelectorAll(
+      '.review-text'
+    );
 
   if (textareas.length) {
-    textareas[textareas.length - 1].focus();
+
+    textareas[
+      textareas.length - 1
+    ].focus();
   }
 }
 
 async function saveReviews() {
+
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
-  const reviews = collectReviews();
+  const reviews =
+    collectReviews();
 
   try {
-    setStatus('Saving reviews...');
 
-    const { error: deleteError } = await sb
-      .from('reviews')
-      .delete()
-      .neq('id', 0);
+    setStatus(
+      'Saving reviews...'
+    );
 
-    if (deleteError) throw deleteError;
-
-    if (reviews.length) {
-      const { error: insertError } = await sb
+    const {
+      error: deleteError
+    } =
+      await sb
         .from('reviews')
-        .insert(reviews);
+        .delete()
+        .neq('id', 0);
 
-      if (insertError) throw insertError;
+    if (deleteError) {
+      throw deleteError;
     }
 
-    setStatus('Reviews saved.', 'success');
+    if (reviews.length) {
+
+      const {
+        error: insertError
+      } =
+        await sb
+          .from('reviews')
+          .insert(reviews);
+
+      if (insertError) {
+        throw insertError;
+      }
+    }
+
+    setStatus(
+      'Reviews saved.',
+      'success'
+    );
 
     await loadReviews();
 
   } catch (err) {
+
     console.error(err);
 
     setStatus(
-      `Could not save reviews: ${err.message || 'Unknown error'}`,
+      `Could not save reviews: ${
+        err.message ||
+        'Unknown error'
+      }`,
       'error'
     );
   }
 }
 
 async function loadReviews() {
-  const { data, error } = await sb
-    .from('reviews')
-    .select('*')
-    .order('id', { ascending: true });
+
+  const {
+    data,
+    error
+  } =
+    await sb
+      .from('reviews')
+      .select('*')
+      .order('id', {
+        ascending: true
+      });
 
   if (error) {
+
     console.error(error);
-    renderReviews(defaultReviews);
+
+    renderReviews(
+      defaultReviews
+    );
+
     return;
   }
 
-  renderReviews(data || []);
+  renderReviews(
+    data || []
+  );
 }
 
 
@@ -1071,53 +1368,80 @@ async function loadReviews() {
 ------------------------------------------------- */
 
 function renderSettings(settings) {
+
   if (!settings) return;
 
   if ($('googleUrl')) {
+
     $('googleUrl').value =
-      settings.google_review_url || '';
+      settings.google_review_url ||
+      '';
   }
 
   if ($('leaveReviewUrl')) {
+
     $('leaveReviewUrl').value =
-      settings.leave_review_url || '';
+      settings.leave_review_url ||
+      '';
   }
 
   if ($('areaText')) {
+
     $('areaText').value =
-      settings.service_area_text || '';
+      settings.service_area_text ||
+      '';
   }
 }
 
 async function saveSettings() {
+
   if (!sb || !user || !isOwner(user)) {
-    setStatus('You must be signed in as the owner.', 'error');
+    setStatus(
+      'You must be signed in as the owner.',
+      'error'
+    );
     return;
   }
 
   const values = {
+
     id: 1,
+
     google_review_url:
-      $('googleUrl')?.value.trim() || '',
+      $('googleUrl')
+        ?.value.trim() ||
+      '',
+
     leave_review_url:
-      $('leaveReviewUrl')?.value.trim() || '',
+      $('leaveReviewUrl')
+        ?.value.trim() ||
+      '',
+
     service_area_text:
-      $('areaText')?.value.trim() || ''
+      $('areaText')
+        ?.value.trim() ||
+      ''
   };
 
   try {
+
     setSectionStatus(
       'settingsStatus',
       'Saving settings...'
     );
 
-    const { error } = await sb
-      .from('site_settings')
-      .upsert(values, {
-        onConflict: 'id'
-      });
+    const {
+      error
+    } =
+      await sb
+        .from('site_settings')
+        .upsert(values, {
+          onConflict: 'id'
+        });
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     setSectionStatus(
       'settingsStatus',
@@ -1126,29 +1450,42 @@ async function saveSettings() {
     );
 
   } catch (err) {
+
     console.error(err);
 
     setSectionStatus(
       'settingsStatus',
-      `Could not save settings: ${err.message || 'Unknown error'}`,
+      `Could not save settings: ${
+        err.message ||
+        'Unknown error'
+      }`,
       'error'
     );
   }
 }
 
 async function loadSettings() {
-  const { data, error } = await sb
-    .from('site_settings')
-    .select('*')
-    .eq('id', 1)
-    .maybeSingle();
+
+  const {
+    data,
+    error
+  } =
+    await sb
+      .from('site_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
 
   if (error) {
+
     console.error(error);
+
     return;
   }
 
-  renderSettings(data || {});
+  renderSettings(
+    data || {}
+  );
 }
 
 
@@ -1157,9 +1494,13 @@ async function loadSettings() {
 ------------------------------------------------- */
 
 async function loadAll() {
-  if (!sb || !user || !isOwner(user)) return;
+
+  if (!sb || !user || !isOwner(user)) {
+    return;
+  }
 
   try {
+
     await Promise.all([
       loadServices(),
       loadGallery(),
@@ -1168,7 +1509,11 @@ async function loadAll() {
     ]);
 
   } catch (err) {
-    console.error('Dashboard loading error:', err);
+
+    console.error(
+      'Dashboard loading error:',
+      err
+    );
 
     setStatus(
       'Some dashboard information could not be loaded.',
@@ -1184,107 +1529,186 @@ async function loadAll() {
 
 function setupEventListeners() {
 
-  const signInBtn = $('signInBtn');
+  const signInBtn =
+    $('signInBtn');
 
   if (signInBtn) {
-    signInBtn.addEventListener('click', event => {
-      event.preventDefault();
-      signIn();
-    });
+
+    signInBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        signIn();
+      }
+    );
   }
 
-  const passwordInput = $('passwordInput');
+  const passwordInput =
+    $('passwordInput');
 
   if (passwordInput) {
-    passwordInput.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        signIn();
+
+    passwordInput.addEventListener(
+      'keydown',
+      event => {
+
+        if (event.key === 'Enter') {
+
+          event.preventDefault();
+
+          signIn();
+        }
       }
-    });
+    );
   }
 
-  const emailInput = $('emailInput');
+  const emailInput =
+    $('emailInput');
 
   if (emailInput) {
-    emailInput.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        signIn();
+
+    emailInput.addEventListener(
+      'keydown',
+      event => {
+
+        if (event.key === 'Enter') {
+
+          event.preventDefault();
+
+          signIn();
+        }
       }
-    });
+    );
   }
 
-  const signOutBtn = $('signOut');
+  const signOutBtn =
+    $('signOut');
 
   if (signOutBtn) {
-    signOutBtn.addEventListener('click', event => {
-      event.preventDefault();
-      signOut();
-    });
+
+    signOutBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        signOut();
+      }
+    );
   }
 
-  const saveSettingsBtn = $('saveSettings');
+  const saveSettingsBtn =
+    $('saveSettings');
 
   if (saveSettingsBtn) {
-    saveSettingsBtn.addEventListener('click', event => {
-      event.preventDefault();
-      saveSettings();
-    });
+
+    saveSettingsBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        saveSettings();
+      }
+    );
   }
 
-  const addServiceBtn = $('addService');
+  const addServiceBtn =
+    $('addService');
 
   if (addServiceBtn) {
-    addServiceBtn.addEventListener('click', event => {
-      event.preventDefault();
-      addService();
-    });
+
+    addServiceBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        addService();
+      }
+    );
   }
 
-  const saveServicesBtn = $('saveServices');
+  const saveServicesBtn =
+    $('saveServices');
 
   if (saveServicesBtn) {
-    saveServicesBtn.addEventListener('click', event => {
-      event.preventDefault();
-      saveServices();
-    });
+
+    saveServicesBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        saveServices();
+      }
+    );
   }
 
-  const addGalleryBtn = $('addGallery');
+  const addGalleryBtn =
+    $('addGallery');
 
   if (addGalleryBtn) {
-    addGalleryBtn.addEventListener('click', event => {
-      event.preventDefault();
-      addGallery();
-    });
+
+    addGalleryBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        addGallery();
+      }
+    );
   }
 
-  const saveGalleryBtn = $('saveGallery');
+  const saveGalleryBtn =
+    $('saveGallery');
 
   if (saveGalleryBtn) {
-    saveGalleryBtn.addEventListener('click', event => {
-      event.preventDefault();
-      saveGallery();
-    });
+
+    saveGalleryBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        saveGallery();
+      }
+    );
   }
 
-  const addReviewBtn = $('addReview');
+  const addReviewBtn =
+    $('addReview');
 
   if (addReviewBtn) {
-    addReviewBtn.addEventListener('click', event => {
-      event.preventDefault();
-      addReview();
-    });
+
+    addReviewBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        addReview();
+      }
+    );
   }
 
-  const saveReviewsBtn = $('saveReviews');
+  const saveReviewsBtn =
+    $('saveReviews');
 
   if (saveReviewsBtn) {
-    saveReviewsBtn.addEventListener('click', event => {
-      event.preventDefault();
-      saveReviews();
-    });
+
+    saveReviewsBtn.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+
+        saveReviews();
+      }
+    );
   }
 }
 
@@ -1293,36 +1717,56 @@ function setupEventListeners() {
    AUTH SESSION
 ------------------------------------------------- */
 
+/*
+  This function is intentionally NOT called
+  when the page starts.
+
+  We want the admin page to require a fresh
+  login after every page load.
+*/
+
 function setupAuthListener() {
+
   if (!sb) return;
 
-  sb.auth.onAuthStateChange(async (_event, session) => {
+  sb.auth.onAuthStateChange(
+    async (_event, session) => {
 
-    const currentUser = session?.user || null;
+      const currentUser =
+        session?.user || null;
 
-    if (!currentUser) {
-      user = null;
-      showLogin();
-      return;
+      if (!currentUser) {
+
+        user = null;
+
+        showLogin();
+
+        return;
+      }
+
+      if (!isOwner(currentUser)) {
+
+        await sb.auth.signOut();
+
+        user = null;
+
+        showLogin();
+
+        setStatus(
+          'This account is not authorized to access the owner dashboard.',
+          'error'
+        );
+
+        return;
+      }
+
+      user = currentUser;
+
+      showDashboard();
+
+      await loadAll();
     }
-
-    if (!isOwner(currentUser)) {
-      await sb.auth.signOut();
-      user = null;
-      showLogin();
-      setStatus(
-        'This account is not authorized to access the owner dashboard.',
-        'error'
-      );
-      return;
-    }
-
-    user = currentUser;
-
-    showDashboard();
-
-    await loadAll();
-  });
+  );
 }
 
 
@@ -1332,13 +1776,21 @@ function setupAuthListener() {
 
 async function check() {
 
-  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !C.OWNER_EMAIL) {
+  if (
+    !C.SUPABASE_URL ||
+    !C.SUPABASE_ANON_KEY ||
+    !C.OWNER_EMAIL
+  ) {
+
     showSetup();
+
     return;
   }
 
   if (!initializeSupabase()) {
+
     showSetup();
+
     return;
   }
 
@@ -1349,16 +1801,25 @@ async function check() {
     Supabase may have a saved session from a previous
     login, so we deliberately clear it here.
   */
+
   try {
+
     await sb.auth.signOut();
+
   } catch (err) {
-    console.error('Could not clear previous session:', err);
+
+    console.error(
+      'Could not clear previous session:',
+      err
+    );
   }
 
   user = null;
+
   showLogin();
 
   if ($('passwordInput')) {
+
     $('passwordInput').value = '';
   }
 
@@ -1370,21 +1831,14 @@ async function check() {
    START
 ------------------------------------------------- */
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener(
+  'DOMContentLoaded',
+  async () => {
 
-  showLogin();
+    showLogin();
 
-  setupEventListeners();
+    setupEventListeners();
 
-  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !C.OWNER_EMAIL) {
-    showSetup();
-    return;
+    await check();
   }
-
-  if (!initializeSupabase()) {
-    showSetup();
-    return;
-  }
-  
-  await check();
-});
+);
