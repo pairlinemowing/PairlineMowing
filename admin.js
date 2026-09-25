@@ -100,7 +100,7 @@ function setStatus(message = '', type = '') {
 function initializeSupabase() {
   if (!window.supabase) {
     setStatus(
-      'Supabase library could not be loaded. Check your internet connection.',
+      'Supabase library could not be loaded.',
       'error'
     );
     return false;
@@ -108,7 +108,7 @@ function initializeSupabase() {
 
   if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
     setStatus(
-      'Supabase is not configured. Check your config.js file.',
+      'Supabase is not configured.',
       'error'
     );
     return false;
@@ -137,78 +137,115 @@ function isOwner(u) {
   );
 }
 
-/* -----------------------------
-   SIGN IN
-   RESTORED WORKING FLOW
------------------------------ */
+/* =========================================================
+   LOGIN
+   =========================================================
+   
+   CORRECT ADMIN CREDENTIALS:
+   SIGN IN -> DASHBOARD
+
+   WRONG CREDENTIALS:
+   "Incorrect admin login."
+========================================================= */
 
 async function signIn() {
   if (!sb) {
-    const initialized = initializeSupabase();
-
-    if (!initialized) {
+    if (!initializeSupabase()) {
       return;
     }
   }
 
-  const emailEl = $('email');
-  const passwordEl = $('password');
+  const emailInput = $('email');
+  const passwordInput = $('password');
 
-  const email = emailEl?.value.trim() || '';
-  const password = passwordEl?.value || '';
+  const email =
+    emailInput?.value.trim() || '';
+
+  const password =
+    passwordInput?.value || '';
 
   if (!email || !password) {
-    setStatus('Enter your email and password.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
   setStatus('Signing in...');
 
-  const { data, error } = await sb.auth.signInWithPassword({
-    email,
-    password
-  });
+  try {
+    /*
+      Supabase checks the actual email/password.
+    */
+    const { data, error } =
+      await sb.auth.signInWithPassword({
+        email,
+        password
+      });
 
-  if (error) {
-    console.error('Sign-in error:', error);
+    /*
+      Wrong Supabase credentials.
+    */
+    if (error || !data?.user) {
+      console.error(
+        'Admin login failed:',
+        error
+      );
+
+      setStatus(
+        'Incorrect admin login.',
+        'error'
+      );
+
+      return;
+    }
+
+    const signedInUser = data.user;
+
+    /*
+      Credentials were valid, but make sure
+      this is the configured admin account.
+    */
+    if (!isOwner(signedInUser)) {
+      await sb.auth.signOut();
+
+      user = null;
+
+      showLogin();
+
+      setStatus(
+        'Incorrect admin login.',
+        'error'
+      );
+
+      return;
+    }
+
+    /*
+      SUCCESS.
+      This is the important part:
+      authenticated owner -> dashboard.
+    */
+    user = signedInUser;
+
+    showDashboard();
+
+    setStatus('');
+
+    await loadAll();
+
+  } catch (err) {
+    console.error(
+      'Unexpected login error:',
+      err
+    );
+
     setStatus(
-      error.message || 'Incorrect email or password.',
+      'Incorrect admin login.',
       'error'
     );
-    return;
   }
-
-  const signedInUser = data?.user;
-
-  if (!signedInUser) {
-    setStatus('Sign-in failed. No user was returned.', 'error');
-    return;
-  }
-
-  /*
-    Only the configured owner can use the dashboard.
-    Anyone else gets signed out immediately.
-  */
-  if (!isOwner(signedInUser)) {
-    await sb.auth.signOut();
-    user = null;
-    showLogin();
-
-    setStatus(
-      'This account is not authorized to access the admin dashboard.',
-      'error'
-    );
-
-    return;
-  }
-
-  user = signedInUser;
-
-  showDashboard();
-
-  setStatus('Signed in successfully.', 'success');
-
-  await loadAll();
 }
 
 /* -----------------------------
@@ -224,13 +261,14 @@ async function signOut() {
 
   showLogin();
 
-  const password = $('password');
+  const passwordInput =
+    $('password');
 
-  if (password) {
-    password.value = '';
+  if (passwordInput) {
+    passwordInput.value = '';
   }
 
-  setStatus('Signed out.');
+  setStatus('');
 }
 
 /* -----------------------------
@@ -238,7 +276,8 @@ async function signOut() {
 ----------------------------- */
 
 function renderServices(items = []) {
-  const container = $('servicesList');
+  const container =
+    $('servicesList');
 
   if (!container) return;
 
@@ -255,7 +294,11 @@ function renderServices(items = []) {
   container.innerHTML = items
     .map(
       (item, index) => `
-        <div class="admin-card service-card" data-index="${index}">
+        <div
+          class="admin-card service-card"
+          data-index="${index}"
+        >
+
           <label>
             Service Title
             <input
@@ -267,18 +310,18 @@ function renderServices(items = []) {
 
           <label>
             Description
-            <textarea class="service-description">${esc(
-              item.description || ''
-            )}</textarea>
+            <textarea
+              class="service-description"
+            >${esc(item.description || '')}</textarea>
           </label>
 
           <button
             type="button"
             class="danger delete-service"
-            data-index="${index}"
           >
             Delete Service
           </button>
+
         </div>
       `
     )
@@ -288,24 +331,35 @@ function renderServices(items = []) {
 }
 
 function attachServiceDeleteButtons() {
-  document.querySelectorAll('.delete-service').forEach(button => {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.index);
+  document
+    .querySelectorAll('.delete-service')
+    .forEach(button => {
+      button.addEventListener(
+        'click',
+        () => {
+          const card =
+            button.closest('.service-card');
 
-      const card = button.closest('.service-card');
-
-      if (card) {
-        card.remove();
-      }
+          if (card) {
+            card.remove();
+          }
+        }
+      );
     });
-  });
 }
 
 function collectServices() {
-  return [...document.querySelectorAll('.service-card')]
+  return [
+    ...document.querySelectorAll(
+      '.service-card'
+    )
+  ]
     .map(card => ({
       title:
-        card.querySelector('.service-title')?.value.trim() || '',
+        card
+          .querySelector('.service-title')
+          ?.value.trim() || '',
+
       description:
         card
           .querySelector('.service-description')
@@ -316,56 +370,75 @@ function collectServices() {
 
 async function saveServices() {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
-  const services = collectServices();
+  const services =
+    collectServices();
 
-  setStatus('Saving services...');
+  setStatus(
+    'Saving services...'
+  );
 
-  const { error: deleteError } = await sb
+  const {
+    error: deleteError
+  } = await sb
     .from('services')
     .delete()
     .neq('id', 0);
 
   if (deleteError) {
     console.error(deleteError);
+
     setStatus(
-      `Could not clear existing services: ${deleteError.message}`,
+      `Could not save services: ${deleteError.message}`,
       'error'
     );
+
     return;
   }
 
   if (services.length) {
-    const { error } = await sb
-      .from('services')
-      .insert(services);
+    const { error } =
+      await sb
+        .from('services')
+        .insert(services);
 
     if (error) {
       console.error(error);
+
       setStatus(
         `Could not save services: ${error.message}`,
         'error'
       );
+
       return;
     }
   }
 
-  setStatus('Services saved successfully.', 'success');
+  setStatus(
+    'Services saved successfully.',
+    'success'
+  );
 
   await loadAll();
 }
 
 function addService() {
-  const container = $('servicesList');
+  const container =
+    $('servicesList');
 
   if (!container) return;
 
-  const card = document.createElement('div');
+  const card =
+    document.createElement('div');
 
-  card.className = 'admin-card service-card';
+  card.className =
+    'admin-card service-card';
 
   card.innerHTML = `
     <label>
@@ -397,9 +470,10 @@ function addService() {
 
   card
     .querySelector('.delete-service')
-    ?.addEventListener('click', () => {
-      card.remove();
-    });
+    ?.addEventListener(
+      'click',
+      () => card.remove()
+    );
 }
 
 /* -----------------------------
@@ -407,18 +481,23 @@ function addService() {
 ----------------------------- */
 
 function createGalleryFileName(file) {
-  const originalName = file?.name || 'image';
+  const originalName =
+    file?.name || 'image';
 
   const extension =
     originalName.includes('.')
-      ? originalName.split('.').pop().toLowerCase()
+      ? originalName
+          .split('.')
+          .pop()
+          .toLowerCase()
       : 'jpg';
 
   return `gallery/${crypto.randomUUID()}.${extension}`;
 }
 
 function renderGallery(items = []) {
-  const container = $('galleryList');
+  const container =
+    $('galleryList');
 
   if (!container) return;
 
@@ -428,15 +507,19 @@ function renderGallery(items = []) {
         No Our Work photos have been added yet.
       </div>
 
-      <button type="button" id="emptyAddGallery">
+      <button
+        type="button"
+        id="emptyAddGallery"
+      >
         Add Photo
       </button>
     `;
 
-    $('emptyAddGallery')?.addEventListener(
-      'click',
-      addGallery
-    );
+    $('emptyAddGallery')
+      ?.addEventListener(
+        'click',
+        addGallery
+      );
 
     return;
   }
@@ -464,18 +547,28 @@ function renderGallery(items = []) {
             <input
               class="gallery-sort"
               type="number"
-              value="${Number(item.sort_order || index + 1)}"
+              value="${Number(
+                item.sort_order || index + 1
+              )}"
             >
           </label>
 
           <div class="gallery-preview">
             ${
               item.image_url
-                ? `<img
+                ? `
+                  <img
                     src="${esc(item.image_url)}"
-                    alt="${esc(item.title || 'Our Work')}"
-                  >`
-                : '<div class="empty-preview">No photo selected</div>'
+                    alt="${esc(
+                      item.title || 'Our Work'
+                    )}"
+                  >
+                `
+                : `
+                  <div class="empty-preview">
+                    No photo selected
+                  </div>
+                `
             }
           </div>
 
@@ -488,10 +581,13 @@ function renderGallery(items = []) {
           <input
             class="gallery-url"
             type="hidden"
-            value="${esc(item.image_url || '')}"
+            value="${esc(
+              item.image_url || ''
+            )}"
           >
 
           <div class="gallery-actions">
+
             <button
               type="button"
               class="upload-gallery"
@@ -511,6 +607,7 @@ function renderGallery(items = []) {
             >
               Delete Photo
             </button>
+
           </div>
 
           <div class="gallery-status"></div>
@@ -527,35 +624,41 @@ function attachGalleryButtons() {
   document
     .querySelectorAll('.upload-gallery')
     .forEach(button => {
-      button.addEventListener('click', () => {
-        uploadGalleryImage(
-          Number(button.dataset.index)
-        );
-      });
+      button.addEventListener(
+        'click',
+        () => {
+          uploadGalleryImage(
+            Number(button.dataset.index)
+          );
+        }
+      );
     });
 
   document
     .querySelectorAll('.delete-gallery')
     .forEach(button => {
-      button.addEventListener('click', () => {
-        deleteGalleryImage(
-          Number(button.dataset.index)
-        );
-      });
+      button.addEventListener(
+        'click',
+        () => {
+          deleteGalleryImage(
+            Number(button.dataset.index)
+          );
+        }
+      );
     });
 }
 
 function addGallery() {
-  const container = $('galleryList');
+  const container =
+    $('galleryList');
 
   if (!container) return;
 
-  const card = document.createElement('div');
+  const card =
+    document.createElement('div');
 
-  card.className = 'admin-card gallery-card';
-
-  card.dataset.index =
-    document.querySelectorAll('.gallery-card').length;
+  card.className =
+    'admin-card gallery-card';
 
   card.innerHTML = `
     <label>
@@ -595,6 +698,7 @@ function addGallery() {
     >
 
     <div class="gallery-actions">
+
       <button
         type="button"
         class="upload-gallery"
@@ -608,6 +712,7 @@ function addGallery() {
       >
         Delete Photo
       </button>
+
     </div>
 
     <div class="gallery-status"></div>
@@ -617,33 +722,51 @@ function addGallery() {
 
   card
     .querySelector('.upload-gallery')
-    ?.addEventListener('click', () => {
-      const cards = [
-        ...document.querySelectorAll('.gallery-card')
-      ];
+    ?.addEventListener(
+      'click',
+      () => {
+        const cards = [
+          ...document.querySelectorAll(
+            '.gallery-card'
+          )
+        ];
 
-      uploadGalleryImage(cards.indexOf(card));
-    });
+        uploadGalleryImage(
+          cards.indexOf(card)
+        );
+      }
+    );
 
   card
     .querySelector('.delete-gallery')
-    ?.addEventListener('click', () => {
-      card.remove();
-    });
+    ?.addEventListener(
+      'click',
+      () => card.remove()
+    );
 }
 
 function collectGallery() {
-  return [...document.querySelectorAll('.gallery-card')]
+  return [
+    ...document.querySelectorAll(
+      '.gallery-card'
+    )
+  ]
     .map((card, index) => ({
       title:
-        card.querySelector('.gallery-title')?.value.trim() ||
-        '',
+        card
+          .querySelector('.gallery-title')
+          ?.value.trim() || '',
+
       image_url:
-        card.querySelector('.gallery-url')?.value.trim() ||
-        '',
+        card
+          .querySelector('.gallery-url')
+          ?.value.trim() || '',
+
       sort_order:
         Number(
-          card.querySelector('.gallery-sort')?.value
+          card
+            .querySelector('.gallery-sort')
+            ?.value
         ) || index + 1
     }))
     .filter(item => item.image_url);
@@ -655,46 +778,61 @@ function getStoragePathFromPublicUrl(url) {
   const marker =
     `/storage/v1/object/public/${GALLERY_BUCKET}/`;
 
-  const index = url.indexOf(marker);
+  const index =
+    url.indexOf(marker);
 
   if (index === -1) {
     return null;
   }
 
   return decodeURIComponent(
-    url.substring(index + marker.length)
+    url.substring(
+      index + marker.length
+    )
   );
 }
 
 async function uploadGalleryImage(index) {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
   const cards = [
-    ...document.querySelectorAll('.gallery-card')
+    ...document.querySelectorAll(
+      '.gallery-card'
+    )
   ];
 
   const card = cards[index];
 
-  if (!card) {
-    return;
-  }
+  if (!card) return;
 
   const fileInput =
-    card.querySelector('.gallery-file');
+    card.querySelector(
+      '.gallery-file'
+    );
 
   const urlInput =
-    card.querySelector('.gallery-url');
+    card.querySelector(
+      '.gallery-url'
+    );
 
   const preview =
-    card.querySelector('.gallery-preview');
+    card.querySelector(
+      '.gallery-preview'
+    );
 
   const status =
-    card.querySelector('.gallery-status');
+    card.querySelector(
+      '.gallery-status'
+    );
 
-  const file = fileInput?.files?.[0];
+  const file =
+    fileInput?.files?.[0];
 
   if (!file) {
     if (status) {
@@ -734,16 +872,23 @@ async function uploadGalleryImage(index) {
   const filePath =
     createGalleryFileName(file);
 
-  const { error: uploadError } =
-    await sb.storage
-      .from(GALLERY_BUCKET)
-      .upload(filePath, file, {
+  const {
+    error: uploadError
+  } = await sb.storage
+    .from(GALLERY_BUCKET)
+    .upload(
+      filePath,
+      file,
+      {
         cacheControl: '3600',
         upsert: false
-      });
+      }
+    );
 
   if (uploadError) {
-    console.error(uploadError);
+    console.error(
+      uploadError
+    );
 
     if (status) {
       status.textContent =
@@ -772,7 +917,8 @@ async function uploadGalleryImage(index) {
   }
 
   if (urlInput) {
-    urlInput.value = publicUrl;
+    urlInput.value =
+      publicUrl;
   }
 
   if (preview) {
@@ -784,13 +930,11 @@ async function uploadGalleryImage(index) {
     `;
   }
 
-  /*
-    Remove the previous storage file after
-    the replacement has successfully uploaded.
-  */
   if (oldUrl) {
     const oldPath =
-      getStoragePathFromPublicUrl(oldUrl);
+      getStoragePathFromPublicUrl(
+        oldUrl
+      );
 
     if (oldPath) {
       await sb.storage
@@ -807,12 +951,17 @@ async function uploadGalleryImage(index) {
 
 async function deleteGalleryImage(index) {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
   const cards = [
-    ...document.querySelectorAll('.gallery-card')
+    ...document.querySelectorAll(
+      '.gallery-card'
+    )
   ];
 
   const card = cards[index];
@@ -820,30 +969,36 @@ async function deleteGalleryImage(index) {
   if (!card) return;
 
   const title =
-    card.querySelector('.gallery-title')
-      ?.value.trim() || 'this photo';
+    card
+      .querySelector('.gallery-title')
+      ?.value.trim() ||
+    'this photo';
 
-  const confirmed =
-    confirm(
+  if (
+    !confirm(
       `Delete "${title}"? This cannot be undone.`
-    );
-
-  if (!confirmed) {
+    )
+  ) {
     return;
   }
 
   const imageUrl =
-    card.querySelector('.gallery-url')
+    card
+      .querySelector('.gallery-url')
       ?.value.trim() || '';
 
   const storagePath =
-    getStoragePathFromPublicUrl(imageUrl);
+    getStoragePathFromPublicUrl(
+      imageUrl
+    );
 
   if (storagePath) {
     const { error } =
       await sb.storage
         .from(GALLERY_BUCKET)
-        .remove([storagePath]);
+        .remove([
+          storagePath
+        ]);
 
     if (error) {
       console.error(
@@ -853,15 +1008,15 @@ async function deleteGalleryImage(index) {
     }
   }
 
-  /*
-    Remove the database row immediately if
-    this gallery item already exists.
-  */
   if (imageUrl) {
-    const { error } = await sb
-      .from('gallery')
-      .delete()
-      .eq('image_url', imageUrl);
+    const { error } =
+      await sb
+        .from('gallery')
+        .delete()
+        .eq(
+          'image_url',
+          imageUrl
+        );
 
     if (error) {
       console.error(error);
@@ -885,25 +1040,34 @@ async function deleteGalleryImage(index) {
 
 async function saveGallery() {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
-  const gallery = collectGallery();
+  const gallery =
+    collectGallery();
 
-  setStatus('Saving gallery...');
+  setStatus(
+    'Saving gallery...'
+  );
 
-  const { error: deleteError } =
-    await sb
-      .from('gallery')
-      .delete()
-      .neq('id', 0);
+  const {
+    error: deleteError
+  } = await sb
+    .from('gallery')
+    .delete()
+    .neq('id', 0);
 
   if (deleteError) {
-    console.error(deleteError);
+    console.error(
+      deleteError
+    );
 
     setStatus(
-      `Could not clear existing gallery: ${deleteError.message}`,
+      `Could not save gallery: ${deleteError.message}`,
       'error'
     );
 
@@ -941,7 +1105,8 @@ async function saveGallery() {
 ----------------------------- */
 
 function renderReviews(items = []) {
-  const container = $('reviewsList');
+  const container =
+    $('reviewsList');
 
   if (!container) return;
 
@@ -957,10 +1122,9 @@ function renderReviews(items = []) {
 
   container.innerHTML = items
     .map(
-      (item, index) => `
+      item => `
         <div
           class="admin-card review-card"
-          data-index="${index}"
         >
 
           <label>
@@ -974,9 +1138,9 @@ function renderReviews(items = []) {
 
           <label>
             Review
-            <textarea class="review-text">${esc(
-              item.review || ''
-            )}</textarea>
+            <textarea
+              class="review-text"
+            >${esc(item.review || '')}</textarea>
           </label>
 
           <label>
@@ -986,14 +1150,15 @@ function renderReviews(items = []) {
               type="number"
               min="1"
               max="5"
-              value="${Number(item.rating || 5)}"
+              value="${Number(
+                item.rating || 5
+              )}"
             >
           </label>
 
           <button
             type="button"
             class="danger delete-review"
-            data-index="${index}"
           >
             Delete Review
           </button>
@@ -1010,58 +1175,83 @@ function attachReviewDeleteButtons() {
   document
     .querySelectorAll('.delete-review')
     .forEach(button => {
-      button.addEventListener('click', () => {
-        const card =
-          button.closest('.review-card');
+      button.addEventListener(
+        'click',
+        () => {
+          const card =
+            button.closest(
+              '.review-card'
+            );
 
-        if (card) {
-          card.remove();
+          if (card) {
+            card.remove();
+          }
         }
-      });
+      );
     });
 }
 
 function collectReviews() {
-  return [...document.querySelectorAll('.review-card')]
+  return [
+    ...document.querySelectorAll(
+      '.review-card'
+    )
+  ]
     .map(card => ({
       name:
-        card.querySelector('.review-name')
+        card
+          .querySelector('.review-name')
           ?.value.trim() || '',
 
       review:
-        card.querySelector('.review-text')
+        card
+          .querySelector('.review-text')
           ?.value.trim() || '',
 
       rating:
         Number(
-          card.querySelector('.review-rating')
+          card
+            .querySelector('.review-rating')
             ?.value
         ) || 5
     }))
-    .filter(item => item.name && item.review);
+    .filter(
+      item =>
+        item.name &&
+        item.review
+    );
 }
 
 async function saveReviews() {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
-  const reviews = collectReviews();
+  const reviews =
+    collectReviews();
 
-  setStatus('Saving reviews...');
+  setStatus(
+    'Saving reviews...'
+  );
 
-  const { error: deleteError } =
-    await sb
-      .from('reviews')
-      .delete()
-      .neq('id', 0);
+  const {
+    error: deleteError
+  } = await sb
+    .from('reviews')
+    .delete()
+    .neq('id', 0);
 
   if (deleteError) {
-    console.error(deleteError);
+    console.error(
+      deleteError
+    );
 
     setStatus(
-      `Could not clear existing reviews: ${deleteError.message}`,
+      `Could not save reviews: ${deleteError.message}`,
       'error'
     );
 
@@ -1095,7 +1285,8 @@ async function saveReviews() {
 }
 
 function addReview() {
-  const container = $('reviewsList');
+  const container =
+    $('reviewsList');
 
   if (!container) return;
 
@@ -1146,9 +1337,10 @@ function addReview() {
 
   card
     .querySelector('.delete-review')
-    ?.addEventListener('click', () => {
-      card.remove();
-    });
+    ?.addEventListener(
+      'click',
+      () => card.remove()
+    );
 }
 
 /* -----------------------------
@@ -1183,7 +1375,10 @@ function renderSettings(settings = {}) {
 
 async function saveSettings() {
   if (!user || !isOwner(user)) {
-    setStatus('You are not authorized.', 'error');
+    setStatus(
+      'Incorrect admin login.',
+      'error'
+    );
     return;
   }
 
@@ -1203,7 +1398,9 @@ async function saveSettings() {
         ?.value.trim() || ''
   };
 
-  setStatus('Saving site settings...');
+  setStatus(
+    'Saving site settings...'
+  );
 
   const { error } =
     await sb
@@ -1214,7 +1411,7 @@ async function saveSettings() {
     console.error(error);
 
     setStatus(
-      `Could not save site settings: ${error.message}`,
+      `Could not save settings: ${error.message}`,
       'error'
     );
 
@@ -1235,8 +1432,6 @@ async function loadAll() {
   if (!sb || !user || !isOwner(user)) {
     return;
   }
-
-  setStatus('Loading your site data...');
 
   const [
     servicesResult,
@@ -1301,10 +1496,10 @@ async function loadAll() {
   }
 
   /*
-    Existing Supabase data is always used first.
-    Defaults are only used when the services table
-    has no services yet.
+    Existing Supabase information is loaded first.
+    Defaults are only used if there are no services.
   */
+
   const services =
     servicesResult.data?.length
       ? servicesResult.data
@@ -1314,86 +1509,117 @@ async function loadAll() {
     galleryResult.data || [];
 
   const reviews =
-    reviewsResult.data || defaultReviews;
+    reviewsResult.data || [];
 
   const settings =
     settingsResult.data || {};
 
-  renderServices(services);
-  renderGallery(gallery);
-  renderReviews(reviews);
-  renderSettings(settings);
+  renderServices(
+    services
+  );
 
-  setStatus('');
+  renderGallery(
+    gallery
+  );
+
+  renderReviews(
+    reviews
+  );
+
+  renderSettings(
+    settings
+  );
 }
 
 /* -----------------------------
-   BUTTONS / EVENTS
+   EVENT LISTENERS
 ----------------------------- */
 
 function setupEventListeners() {
-  $('signInBtn')?.addEventListener(
-    'click',
-    signIn
-  );
 
-  $('loginForm')?.addEventListener(
-    'submit',
-    event => {
-      event.preventDefault();
-      signIn();
-    }
-  );
-
-  $('password')?.addEventListener(
-    'keydown',
-    event => {
-      if (event.key === 'Enter') {
+  /*
+    Login button.
+  */
+  $('signInBtn')
+    ?.addEventListener(
+      'click',
+      event => {
         event.preventDefault();
         signIn();
       }
-    }
-  );
+    );
 
-  $('signOutBtn')?.addEventListener(
-    'click',
-    signOut
-  );
+  /*
+    Login form.
+    This also makes pressing Enter work.
+  */
+  $('loginForm')
+    ?.addEventListener(
+      'submit',
+      event => {
+        event.preventDefault();
+        signIn();
+      }
+    );
 
-  $('saveServices')?.addEventListener(
-    'click',
-    saveServices
-  );
+  $('password')
+    ?.addEventListener(
+      'keydown',
+      event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          signIn();
+        }
+      }
+    );
 
-  $('addService')?.addEventListener(
-    'click',
-    addService
-  );
+  $('signOutBtn')
+    ?.addEventListener(
+      'click',
+      signOut
+    );
 
-  $('saveGallery')?.addEventListener(
-    'click',
-    saveGallery
-  );
+  $('saveServices')
+    ?.addEventListener(
+      'click',
+      saveServices
+    );
 
-  $('addGallery')?.addEventListener(
-    'click',
-    addGallery
-  );
+  $('addService')
+    ?.addEventListener(
+      'click',
+      addService
+    );
 
-  $('saveReviews')?.addEventListener(
-    'click',
-    saveReviews
-  );
+  $('saveGallery')
+    ?.addEventListener(
+      'click',
+      saveGallery
+    );
 
-  $('addReview')?.addEventListener(
-    'click',
-    addReview
-  );
+  $('addGallery')
+    ?.addEventListener(
+      'click',
+      addGallery
+    );
 
-  $('saveSettings')?.addEventListener(
-    'click',
-    saveSettings
-  );
+  $('saveReviews')
+    ?.addEventListener(
+      'click',
+      saveReviews
+    );
+
+  $('addReview')
+    ?.addEventListener(
+      'click',
+      addReview
+    );
+
+  $('saveSettings')
+    ?.addEventListener(
+      'click',
+      saveSettings
+    );
 }
 
 /* -----------------------------
@@ -1404,7 +1630,8 @@ function setupAuthListener() {
   if (!sb) return;
 
   sb.auth.onAuthStateChange(
-    async (event, session) => {
+    (event, session) => {
+
       if (event === 'SIGNED_OUT') {
         user = null;
         showLogin();
@@ -1416,38 +1643,25 @@ function setupAuthListener() {
       }
 
       /*
-        Keep the authenticated session if it belongs
-        to the configured owner.
+        Valid owner session.
       */
       if (isOwner(session.user)) {
         user = session.user;
         showDashboard();
-
-        /*
-          Don't reload everything unnecessarily on
-          every auth event.
-        */
-        if (
-          event === 'SIGNED_IN' ||
-          event === 'INITIAL_SESSION'
-        ) {
-          await loadAll();
-        }
-
         return;
       }
 
       /*
-        Any authenticated account that is not the owner
-        is immediately signed out.
+        Not the owner.
       */
-      await sb.auth.signOut();
+      sb.auth.signOut();
 
       user = null;
+
       showLogin();
 
       setStatus(
-        'This account is not authorized to access the admin dashboard.',
+        'Incorrect admin login.',
         'error'
       );
     }
@@ -1455,17 +1669,12 @@ function setupAuthListener() {
 }
 
 /* -----------------------------
-   CHECK EXISTING SESSION
-   IMPORTANT:
-   DO NOT SIGN OUT ON PAGE LOAD
+   CHECK EXISTING LOGIN
 ----------------------------- */
 
 async function check() {
   if (!sb) {
-    const initialized =
-      initializeSupabase();
-
-    if (!initialized) {
+    if (!initializeSupabase()) {
       return;
     }
   }
@@ -1483,11 +1692,6 @@ async function check() {
 
     showLogin();
 
-    setStatus(
-      'Could not check your login session.',
-      'error'
-    );
-
     return;
   }
 
@@ -1495,7 +1699,8 @@ async function check() {
     data?.session;
 
   /*
-    No session means show the login screen.
+    No existing login.
+    Show login page.
   */
   if (!session?.user) {
     user = null;
@@ -1504,8 +1709,8 @@ async function check() {
   }
 
   /*
-    Existing session belongs to owner.
-    Keep it instead of signing out.
+    Existing authenticated owner.
+    Go directly to dashboard.
   */
   if (isOwner(session.user)) {
     user = session.user;
@@ -1518,7 +1723,8 @@ async function check() {
   }
 
   /*
-    Existing session is not the owner.
+    Logged into Supabase but not
+    the configured admin account.
   */
   await sb.auth.signOut();
 
@@ -1527,18 +1733,24 @@ async function check() {
   showLogin();
 
   setStatus(
-    'This account is not authorized to access the admin dashboard.',
+    'Incorrect admin login.',
     'error'
   );
 }
 
 /* -----------------------------
-   START
+   START ADMIN PAGE
 ----------------------------- */
 
 document.addEventListener(
   'DOMContentLoaded',
   async () => {
+
+    /*
+      Always begin on login screen
+      until an existing owner session
+      is confirmed.
+    */
     showLogin();
 
     setupEventListeners();
