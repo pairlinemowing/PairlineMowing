@@ -3,9 +3,39 @@ const C = window.PAIRLINE_CONFIG || {};
 let sb = null;
 let user = null;
 
+const $ = id => document.getElementById(id);
+
 const GALLERY_BUCKET = 'SITE-IMAGES';
 
-const $ = id => document.getElementById(id);
+const defaultServices = [
+  {
+    title: 'Lawn Mowing',
+    description: 'Professional lawn mowing to keep your property clean, healthy, and looking its best.'
+  },
+  {
+    title: 'Edging',
+    description: 'Clean, defined edges around sidewalks, driveways, and lawn borders.'
+  },
+  {
+    title: 'Weed Whacking',
+    description: 'Detailed trimming around fences, buildings, landscaping, and hard-to-reach areas.'
+  },
+  {
+    title: 'Gutter Cleaning',
+    description: 'Removal of leaves, dirt, and debris from residential gutters.'
+  },
+  {
+    title: 'Equipment Repairs',
+    description: 'Lawn-mower, whipper, and small equipment repair services.'
+  }
+];
+
+const defaultReviews = [];
+
+
+/* -------------------------------------------------
+   HELPERS
+------------------------------------------------- */
 
 function esc(v = '') {
   return String(v)
@@ -16,101 +46,97 @@ function esc(v = '') {
     .replaceAll("'", '&#039;');
 }
 
-/* -----------------------------
-   DEFAULT SERVICES
------------------------------ */
-
-const defaultServices = [
-  {
-    title: 'Lawn Mowing',
-    description:
-      'Professional lawn mowing to keep your property looking clean and maintained.'
-  },
-  {
-    title: 'Edging',
-    description:
-      'Clean, sharp edging around sidewalks, driveways, and lawn borders.'
-  },
-  {
-    title: 'Weed Whacking',
-    description:
-      'Trim hard-to-reach grass and weeds for a neat finished look.'
-  },
-  {
-    title: 'Gutter Cleaning',
-    description:
-      'Remove leaves, dirt, and debris from your gutters to help keep water flowing properly.'
-  },
-  {
-    title: 'Equipment Repairs',
-    description:
-      'Lawn-mower, whipper, and other outdoor equipment repair services.'
-  }
-];
-
-const defaultReviews = [];
-
-/* -----------------------------
-   SCREEN CONTROL
------------------------------ */
-
-function showLogin() {
-  const login = $('loginScreen');
-  const setup = $('setupScreen');
-  const dashboard = $('dashboardScreen');
-
-  if (login) login.style.display = '';
-  if (setup) setup.style.display = 'none';
-  if (dashboard) dashboard.style.display = 'none';
-}
-
-function showSetup() {
-  const login = $('loginScreen');
-  const setup = $('setupScreen');
-  const dashboard = $('dashboardScreen');
-
-  if (login) login.style.display = 'none';
-  if (setup) setup.style.display = '';
-  if (dashboard) dashboard.style.display = 'none';
-}
-
-function showDashboard() {
-  const login = $('loginScreen');
-  const setup = $('setupScreen');
-  const dashboard = $('dashboardScreen');
-
-  if (login) login.style.display = 'none';
-  if (setup) setup.style.display = 'none';
-  if (dashboard) dashboard.style.display = '';
-}
-
 function setStatus(message = '', type = '') {
-  const el = $('status');
+  const el = $('loginStatus');
 
   if (!el) return;
 
   el.textContent = message;
-  el.className = type ? `status ${type}` : 'status';
+
+  if (type === 'error') {
+    el.style.color = '#9d2c2c';
+    el.style.fontWeight = '800';
+  } else if (type === 'success') {
+    el.style.color = '#287719';
+    el.style.fontWeight = '800';
+  } else {
+    el.style.color = '';
+    el.style.fontWeight = '';
+  }
 }
 
-/* -----------------------------
+function setSectionStatus(id, message = '', type = '') {
+  const el = $(id);
+
+  if (!el) return;
+
+  el.textContent = message;
+
+  if (type === 'error') {
+    el.style.color = '#9d2c2c';
+    el.style.fontWeight = '800';
+  } else if (type === 'success') {
+    el.style.color = '#287719';
+    el.style.fontWeight = '800';
+  } else {
+    el.style.color = '';
+    el.style.fontWeight = '';
+  }
+}
+
+
+/* -------------------------------------------------
+   SCREEN CONTROL
+------------------------------------------------- */
+
+function showLogin() {
+  if ($('login')) $('login').hidden = false;
+  if ($('setupNotice')) $('setupNotice').hidden = true;
+  if ($('dashboard')) $('dashboard').hidden = true;
+}
+
+function showSetup() {
+  if ($('login')) $('login').hidden = true;
+  if ($('setupNotice')) $('setupNotice').hidden = false;
+  if ($('dashboard')) $('dashboard').hidden = true;
+}
+
+function showDashboard() {
+  if ($('login')) $('login').hidden = true;
+  if ($('setupNotice')) $('setupNotice').hidden = true;
+  if ($('dashboard')) $('dashboard').hidden = false;
+}
+
+
+/* -------------------------------------------------
+   OWNER CHECK
+------------------------------------------------- */
+
+function isOwner(currentUser) {
+  if (!currentUser) return false;
+
+  const ownerEmail = String(C.OWNER_EMAIL || '')
+    .trim()
+    .toLowerCase();
+
+  const userEmail = String(currentUser.email || '')
+    .trim()
+    .toLowerCase();
+
+  return !!ownerEmail && !!userEmail && ownerEmail === userEmail;
+}
+
+
+/* -------------------------------------------------
    SUPABASE
------------------------------ */
+------------------------------------------------- */
 
 function initializeSupabase() {
-  if (!window.supabase) {
-    setStatus(
-      'Supabase library could not be loaded.',
-      'error'
-    );
+  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
     return false;
   }
 
-  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
-    setStatus(
-      'Supabase is not configured.',
-      'error'
-    );
+  if (!window.supabase || !window.supabase.createClient) {
     return false;
   }
 
@@ -122,1646 +148,1266 @@ function initializeSupabase() {
   return true;
 }
 
-/* -----------------------------
-   OWNER CHECK
------------------------------ */
 
-function isOwner(u) {
-  if (!u?.email || !C.OWNER_EMAIL) {
-    return false;
-  }
-
-  return (
-    u.email.trim().toLowerCase() ===
-    C.OWNER_EMAIL.trim().toLowerCase()
-  );
-}
-
-/* =========================================================
+/* -------------------------------------------------
    LOGIN
-   =========================================================
-   
-   CORRECT ADMIN CREDENTIALS:
-   SIGN IN -> DASHBOARD
-
-   WRONG CREDENTIALS:
-   "Incorrect admin login."
-========================================================= */
+------------------------------------------------- */
 
 async function signIn() {
   if (!sb) {
-    if (!initializeSupabase()) {
-      return;
-    }
+    setStatus('Supabase is not configured.', 'error');
+    return;
   }
 
-  const emailInput = $('email');
-  const passwordInput = $('password');
+  const emailEl = $('emailInput');
+  const passwordEl = $('passwordInput');
 
-  const email =
-    emailInput?.value.trim() || '';
+  if (!emailEl || !passwordEl) {
+    setStatus('Login fields could not be found.', 'error');
+    return;
+  }
 
-  const password =
-    passwordInput?.value || '';
+  const email = emailEl.value.trim();
+  const password = passwordEl.value;
 
   if (!email || !password) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+    setStatus('Enter your owner email and password.', 'error');
     return;
   }
 
   setStatus('Signing in...');
 
   try {
-    /*
-      Supabase checks the actual email/password.
-    */
-    const { data, error } =
-      await sb.auth.signInWithPassword({
-        email,
-        password
-      });
+    const { data, error } = await sb.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    /*
-      Wrong Supabase credentials.
-    */
-    if (error || !data?.user) {
-      console.error(
-        'Admin login failed:',
-        error
-      );
-
-      setStatus(
-        'Incorrect admin login.',
-        'error'
-      );
-
+    if (error) {
+      console.error(error);
+      setStatus('Incorrect admin login.', 'error');
       return;
     }
 
-    const signedInUser = data.user;
+    const signedInUser = data?.user;
 
-    /*
-      Credentials were valid, but make sure
-      this is the configured admin account.
-    */
+    if (!signedInUser) {
+      setStatus('Sign-in failed.', 'error');
+      return;
+    }
+
     if (!isOwner(signedInUser)) {
       await sb.auth.signOut();
-
       user = null;
-
-      showLogin();
-
-      setStatus(
-        'Incorrect admin login.',
-        'error'
-      );
-
+      setStatus('This account is not authorized to access the owner dashboard.', 'error');
       return;
     }
 
-    /*
-      SUCCESS.
-      This is the important part:
-      authenticated owner -> dashboard.
-    */
     user = signedInUser;
 
-    showDashboard();
-
     setStatus('');
+    showDashboard();
 
     await loadAll();
 
   } catch (err) {
-    console.error(
-      'Unexpected login error:',
-      err
-    );
-
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+    console.error(err);
+    setStatus('Unable to sign in. Please try again.', 'error');
   }
 }
 
-/* -----------------------------
+
+/* -------------------------------------------------
    SIGN OUT
------------------------------ */
+------------------------------------------------- */
 
 async function signOut() {
-  if (sb) {
+  if (!sb) return;
+
+  try {
     await sb.auth.signOut();
+  } catch (err) {
+    console.error(err);
   }
 
   user = null;
-
   showLogin();
 
-  const passwordInput =
-    $('password');
-
-  if (passwordInput) {
-    passwordInput.value = '';
+  if ($('passwordInput')) {
+    $('passwordInput').value = '';
   }
 
   setStatus('');
 }
 
-/* -----------------------------
+
+/* -------------------------------------------------
    SERVICES
------------------------------ */
+------------------------------------------------- */
 
-function renderServices(items = []) {
-  const container =
-    $('servicesList');
+function renderServices(items) {
+  const editor = $('servicesEditor');
 
-  if (!container) return;
+  if (!editor) return;
 
   if (!items.length) {
-    container.innerHTML = `
-      <div class="empty-state">
+    editor.innerHTML = `
+      <div class="muted">
         No services have been added yet.
       </div>
     `;
-
     return;
   }
 
-  container.innerHTML = items
-    .map(
-      (item, index) => `
-        <div
-          class="admin-card service-card"
-          data-index="${index}"
-        >
+  editor.innerHTML = items.map((item, index) => `
+    <div class="list-item service-item" data-index="${index}">
 
-          <label>
-            Service Title
-            <input
-              class="service-title"
-              type="text"
-              value="${esc(item.title || '')}"
-            >
-          </label>
+      <div class="admin-grid">
 
-          <label>
-            Description
-            <textarea
-              class="service-description"
-            >${esc(item.description || '')}</textarea>
-          </label>
-
-          <button
-            type="button"
-            class="danger delete-service"
-          >
-            Delete Service
-          </button>
-
+        <div class="field">
+          <label>Service name</label>
+          <input
+            class="service-title"
+            type="text"
+            value="${esc(item.title || '')}"
+            placeholder="Service name">
         </div>
-      `
-    )
-    .join('');
 
-  attachServiceDeleteButtons();
-}
+        <div class="field">
+          <label>Description</label>
+          <input
+            class="service-description"
+            type="text"
+            value="${esc(item.description || '')}"
+            placeholder="Service description">
+        </div>
 
-function attachServiceDeleteButtons() {
-  document
-    .querySelectorAll('.delete-service')
-    .forEach(button => {
-      button.addEventListener(
-        'click',
-        () => {
-          const card =
-            button.closest('.service-card');
+      </div>
 
-          if (card) {
-            card.remove();
-          }
-        }
-      );
+      <div class="admin-actions">
+        <button
+          type="button"
+          class="admin-btn danger delete-service">
+          Delete service
+        </button>
+      </div>
+
+    </div>
+  `).join('');
+
+  editor.querySelectorAll('.delete-service').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('.service-item');
+
+      if (!item) return;
+
+      item.remove();
+
+      if (!editor.querySelector('.service-item')) {
+        renderServices([]);
+      }
     });
+  });
 }
 
 function collectServices() {
-  return [
-    ...document.querySelectorAll(
-      '.service-card'
-    )
-  ]
-    .map(card => ({
-      title:
-        card
-          .querySelector('.service-title')
-          ?.value.trim() || '',
+  const items = [];
 
-      description:
-        card
-          .querySelector('.service-description')
-          ?.value.trim() || ''
-    }))
-    .filter(item => item.title);
-}
+  document.querySelectorAll('.service-item').forEach(item => {
+    const title = item.querySelector('.service-title')?.value.trim() || '';
+    const description = item.querySelector('.service-description')?.value.trim() || '';
 
-async function saveServices() {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
-    return;
-  }
+    if (!title) return;
 
-  const services =
-    collectServices();
+    items.push({
+      title,
+      description
+    });
+  });
 
-  setStatus(
-    'Saving services...'
-  );
-
-  const {
-    error: deleteError
-  } = await sb
-    .from('services')
-    .delete()
-    .neq('id', 0);
-
-  if (deleteError) {
-    console.error(deleteError);
-
-    setStatus(
-      `Could not save services: ${deleteError.message}`,
-      'error'
-    );
-
-    return;
-  }
-
-  if (services.length) {
-    const { error } =
-      await sb
-        .from('services')
-        .insert(services);
-
-    if (error) {
-      console.error(error);
-
-      setStatus(
-        `Could not save services: ${error.message}`,
-        'error'
-      );
-
-      return;
-    }
-  }
-
-  setStatus(
-    'Services saved successfully.',
-    'success'
-  );
-
-  await loadAll();
+  return items;
 }
 
 function addService() {
-  const container =
-    $('servicesList');
+  const editor = $('servicesEditor');
 
-  if (!container) return;
+  if (!editor) return;
 
-  const card =
-    document.createElement('div');
+  const current = collectServices();
 
-  card.className =
-    'admin-card service-card';
+  current.push({
+    title: '',
+    description: ''
+  });
 
-  card.innerHTML = `
-    <label>
-      Service Title
-      <input
-        class="service-title"
-        type="text"
-        placeholder="Service name"
-      >
-    </label>
+  renderServices(current);
 
-    <label>
-      Description
-      <textarea
-        class="service-description"
-        placeholder="Service description"
-      ></textarea>
-    </label>
+  const inputs = editor.querySelectorAll('.service-title');
 
-    <button
-      type="button"
-      class="danger delete-service"
-    >
-      Delete Service
-    </button>
-  `;
-
-  container.appendChild(card);
-
-  card
-    .querySelector('.delete-service')
-    ?.addEventListener(
-      'click',
-      () => card.remove()
-    );
+  if (inputs.length) {
+    inputs[inputs.length - 1].focus();
+  }
 }
 
-/* -----------------------------
-   GALLERY
------------------------------ */
-
-function createGalleryFileName(file) {
-  const originalName =
-    file?.name || 'image';
-
-  const extension =
-    originalName.includes('.')
-      ? originalName
-          .split('.')
-          .pop()
-          .toLowerCase()
-      : 'jpg';
-
-  return `gallery/${crypto.randomUUID()}.${extension}`;
-}
-
-function renderGallery(items = []) {
-  const container =
-    $('galleryList');
-
-  if (!container) return;
-
-  if (!items.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        No Our Work photos have been added yet.
-      </div>
-
-      <button
-        type="button"
-        id="emptyAddGallery"
-      >
-        Add Photo
-      </button>
-    `;
-
-    $('emptyAddGallery')
-      ?.addEventListener(
-        'click',
-        addGallery
-      );
-
+async function saveServices() {
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
     return;
   }
 
-  container.innerHTML = items
-    .map(
-      (item, index) => `
-        <div
-          class="admin-card gallery-card"
-          data-index="${index}"
-        >
+  const services = collectServices();
 
-          <label>
-            Photo Title
-            <input
-              class="gallery-title"
-              type="text"
-              value="${esc(item.title || '')}"
-              placeholder="Example: Front Yard Mowing"
-            >
-          </label>
+  try {
+    setStatus('Saving services...');
 
-          <label>
-            Sort Order
-            <input
-              class="gallery-sort"
-              type="number"
-              value="${Number(
-                item.sort_order || index + 1
-              )}"
-            >
-          </label>
+    const { error: deleteError } = await sb
+      .from('services')
+      .delete()
+      .neq('id', 0);
 
-          <div class="gallery-preview">
-            ${
-              item.image_url
-                ? `
-                  <img
-                    src="${esc(item.image_url)}"
-                    alt="${esc(
-                      item.title || 'Our Work'
-                    )}"
-                  >
-                `
-                : `
-                  <div class="empty-preview">
-                    No photo selected
-                  </div>
-                `
-            }
-          </div>
+    if (deleteError) throw deleteError;
 
-          <input
-            class="gallery-file"
-            type="file"
-            accept="image/*"
-          >
+    if (services.length) {
+      const { error: insertError } = await sb
+        .from('services')
+        .insert(services);
 
-          <input
-            class="gallery-url"
-            type="hidden"
-            value="${esc(
-              item.image_url || ''
-            )}"
-          >
+      if (insertError) throw insertError;
+    }
 
-          <div class="gallery-actions">
+    setStatus('Services saved.', 'success');
 
-            <button
-              type="button"
-              class="upload-gallery"
-              data-index="${index}"
-            >
-              ${
-                item.image_url
-                  ? 'Replace Photo'
-                  : 'Upload Photo'
-              }
-            </button>
+    await loadServices();
 
-            <button
-              type="button"
-              class="danger delete-gallery"
-              data-index="${index}"
-            >
-              Delete Photo
-            </button>
-
-          </div>
-
-          <div class="gallery-status"></div>
-
-        </div>
-      `
-    )
-    .join('');
-
-  attachGalleryButtons();
-}
-
-function attachGalleryButtons() {
-  document
-    .querySelectorAll('.upload-gallery')
-    .forEach(button => {
-      button.addEventListener(
-        'click',
-        () => {
-          uploadGalleryImage(
-            Number(button.dataset.index)
-          );
-        }
-      );
-    });
-
-  document
-    .querySelectorAll('.delete-gallery')
-    .forEach(button => {
-      button.addEventListener(
-        'click',
-        () => {
-          deleteGalleryImage(
-            Number(button.dataset.index)
-          );
-        }
-      );
-    });
-}
-
-function addGallery() {
-  const container =
-    $('galleryList');
-
-  if (!container) return;
-
-  const card =
-    document.createElement('div');
-
-  card.className =
-    'admin-card gallery-card';
-
-  card.innerHTML = `
-    <label>
-      Photo Title
-      <input
-        class="gallery-title"
-        type="text"
-        placeholder="Example: Front Yard Mowing"
-      >
-    </label>
-
-    <label>
-      Sort Order
-      <input
-        class="gallery-sort"
-        type="number"
-        value="1"
-      >
-    </label>
-
-    <div class="gallery-preview">
-      <div class="empty-preview">
-        No photo selected
-      </div>
-    </div>
-
-    <input
-      class="gallery-file"
-      type="file"
-      accept="image/*"
-    >
-
-    <input
-      class="gallery-url"
-      type="hidden"
-      value=""
-    >
-
-    <div class="gallery-actions">
-
-      <button
-        type="button"
-        class="upload-gallery"
-      >
-        Upload Photo
-      </button>
-
-      <button
-        type="button"
-        class="danger delete-gallery"
-      >
-        Delete Photo
-      </button>
-
-    </div>
-
-    <div class="gallery-status"></div>
-  `;
-
-  container.appendChild(card);
-
-  card
-    .querySelector('.upload-gallery')
-    ?.addEventListener(
-      'click',
-      () => {
-        const cards = [
-          ...document.querySelectorAll(
-            '.gallery-card'
-          )
-        ];
-
-        uploadGalleryImage(
-          cards.indexOf(card)
-        );
-      }
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      `Could not save services: ${err.message || 'Unknown error'}`,
+      'error'
     );
-
-  card
-    .querySelector('.delete-gallery')
-    ?.addEventListener(
-      'click',
-      () => card.remove()
-    );
+  }
 }
 
-function collectGallery() {
-  return [
-    ...document.querySelectorAll(
-      '.gallery-card'
-    )
-  ]
-    .map((card, index) => ({
-      title:
-        card
-          .querySelector('.gallery-title')
-          ?.value.trim() || '',
+async function loadServices() {
+  const { data, error } = await sb
+    .from('services')
+    .select('*')
+    .order('id', { ascending: true });
 
-      image_url:
-        card
-          .querySelector('.gallery-url')
-          ?.value.trim() || '',
+  if (error) {
+    console.error(error);
+    renderServices(defaultServices);
+    return;
+  }
 
-      sort_order:
-        Number(
-          card
-            .querySelector('.gallery-sort')
-            ?.value
-        ) || index + 1
-    }))
-    .filter(item => item.image_url);
+  if (data && data.length) {
+    renderServices(data);
+  } else {
+    renderServices(defaultServices);
+  }
+}
+
+
+/* -------------------------------------------------
+   GALLERY
+------------------------------------------------- */
+
+function createGalleryFileName(file) {
+  const original = file.name || 'photo';
+  const extension = original.includes('.')
+    ? original.split('.').pop().toLowerCase()
+    : 'jpg';
+
+  return `gallery/${crypto.randomUUID()}.${extension}`;
 }
 
 function getStoragePathFromPublicUrl(url) {
   if (!url) return null;
 
-  const marker =
-    `/storage/v1/object/public/${GALLERY_BUCKET}/`;
+  const marker = `/storage/v1/object/public/${GALLERY_BUCKET}/`;
 
-  const index =
-    url.indexOf(marker);
+  const index = url.indexOf(marker);
 
-  if (index === -1) {
-    return null;
-  }
+  if (index === -1) return null;
 
   return decodeURIComponent(
-    url.substring(
-      index + marker.length
-    )
+    url.substring(index + marker.length)
   );
 }
 
-async function uploadGalleryImage(index) {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+function renderGallery(items) {
+  const editor = $('galleryEditor');
+
+  if (!editor) return;
+
+  if (!items.length) {
+    editor.innerHTML = `
+      <div class="muted">
+        No Our Work photos have been added yet.
+      </div>
+    `;
     return;
   }
 
-  const cards = [
-    ...document.querySelectorAll(
-      '.gallery-card'
-    )
-  ];
+  editor.innerHTML = items.map((item, index) => `
+    <div
+      class="list-item gallery-item"
+      data-index="${index}"
+      data-existing-id="${esc(item.id || '')}">
 
-  const card = cards[index];
+      <div class="admin-grid">
 
-  if (!card) return;
+        <div class="field">
+          <label>Photo title</label>
+          <input
+            class="gallery-title"
+            type="text"
+            value="${esc(item.title || '')}"
+            placeholder="Example: Backyard cleanup">
+        </div>
 
-  const fileInput =
-    card.querySelector(
-      '.gallery-file'
+        <div class="field">
+          <label>Sort order</label>
+          <input
+            class="gallery-sort"
+            type="number"
+            value="${esc(item.sort_order ?? index)}"
+            min="0">
+        </div>
+
+        <div class="field full">
+          <label>Current photo</label>
+
+          <div>
+            ${
+              item.image_url
+                ? `
+                  <img
+                    class="gallery-preview"
+                    src="${esc(item.image_url)}"
+                    alt="${esc(item.title || 'Our Work photo')}"
+                    style="
+                      display:block;
+                      width:100%;
+                      max-width:500px;
+                      max-height:300px;
+                      object-fit:cover;
+                      border-radius:6px;
+                      margin-bottom:10px;
+                      border:1px solid #d6ddd4;
+                    ">
+                `
+                : `
+                  <div class="muted">
+                    No photo uploaded yet.
+                  </div>
+                `
+            }
+          </div>
+        </div>
+
+        <div class="field full">
+          <label>Upload photo</label>
+
+          <input
+            class="gallery-file"
+            type="file"
+            accept="image/*">
+
+          <input
+            class="gallery-url"
+            type="hidden"
+            value="${esc(item.image_url || '')}">
+        </div>
+
+      </div>
+
+      <div class="admin-actions">
+
+        <button
+          type="button"
+          class="admin-btn upload-gallery">
+          Upload / Replace Photo
+        </button>
+
+        <button
+          type="button"
+          class="admin-btn danger delete-gallery">
+          Delete Photo
+        </button>
+
+      </div>
+
+      <div class="gallery-status muted" style="margin-top:10px"></div>
+
+    </div>
+  `).join('');
+
+  editor.querySelectorAll('.upload-gallery').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('.gallery-item');
+
+      if (!item) return;
+
+      const index = [...editor.querySelectorAll('.gallery-item')]
+        .indexOf(item);
+
+      uploadGalleryImage(index);
+    });
+  });
+
+  editor.querySelectorAll('.delete-gallery').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('.gallery-item');
+
+      if (!item) return;
+
+      const index = [...editor.querySelectorAll('.gallery-item')]
+        .indexOf(item);
+
+      deleteGalleryImage(index);
+    });
+  });
+}
+
+function collectGallery() {
+  const items = [];
+
+  document.querySelectorAll('.gallery-item').forEach(item => {
+    const title = item.querySelector('.gallery-title')?.value.trim() || '';
+    const image_url = item.querySelector('.gallery-url')?.value.trim() || '';
+    const sort_order = Number(
+      item.querySelector('.gallery-sort')?.value || 0
     );
 
-  const urlInput =
-    card.querySelector(
-      '.gallery-url'
-    );
+    if (!image_url) return;
 
-  const preview =
-    card.querySelector(
-      '.gallery-preview'
-    );
+    items.push({
+      title,
+      image_url,
+      sort_order
+    });
+  });
 
-  const status =
-    card.querySelector(
-      '.gallery-status'
-    );
+  return items;
+}
 
-  const file =
-    fileInput?.files?.[0];
+function addGallery() {
+  const editor = $('galleryEditor');
+
+  if (!editor) return;
+
+  const current = collectGallery();
+
+  current.push({
+    title: '',
+    image_url: '',
+    sort_order: current.length
+  });
+
+  renderGallery(current);
+
+  const items = editor.querySelectorAll('.gallery-item');
+
+  if (items.length) {
+    items[items.length - 1].scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+  }
+}
+
+async function uploadGalleryImage(index) {
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
+    return;
+  }
+
+  const items = document.querySelectorAll('.gallery-item');
+  const item = items[index];
+
+  if (!item) return;
+
+  const fileInput = item.querySelector('.gallery-file');
+  const urlInput = item.querySelector('.gallery-url');
+  const status = item.querySelector('.gallery-status');
+  const preview = item.querySelector('.gallery-preview');
+
+  const file = fileInput?.files?.[0];
 
   if (!file) {
     if (status) {
-      status.textContent =
-        'Choose a photo first.';
+      status.textContent = 'Choose a photo first.';
+      status.style.color = '#9d2c2c';
     }
-
     return;
   }
 
   if (!file.type.startsWith('image/')) {
     if (status) {
-      status.textContent =
-        'Please select an image file.';
+      status.textContent = 'Please choose an image file.';
+      status.style.color = '#9d2c2c';
     }
-
     return;
   }
 
   if (file.size > 10 * 1024 * 1024) {
     if (status) {
-      status.textContent =
-        'Image must be 10 MB or smaller.';
+      status.textContent = 'Photo must be 10 MB or smaller.';
+      status.style.color = '#9d2c2c';
     }
-
     return;
   }
 
-  if (status) {
-    status.textContent =
-      'Uploading photo...';
-  }
+  try {
+    if (status) {
+      status.textContent = 'Uploading photo...';
+      status.style.color = '';
+    }
 
-  const oldUrl =
-    urlInput?.value.trim() || '';
+    const oldUrl = urlInput?.value || '';
+    const path = createGalleryFileName(file);
 
-  const filePath =
-    createGalleryFileName(file);
-
-  const {
-    error: uploadError
-  } = await sb.storage
-    .from(GALLERY_BUCKET)
-    .upload(
-      filePath,
-      file,
-      {
+    const { error: uploadError } = await sb.storage
+      .from(GALLERY_BUCKET)
+      .upload(path, file, {
         cacheControl: '3600',
-        upsert: false
+        upsert: false,
+        contentType: file.type
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const {
+      data: publicData
+    } = sb.storage
+      .from(GALLERY_BUCKET)
+      .getPublicUrl(path);
+
+    const publicUrl = publicData?.publicUrl;
+
+    if (!publicUrl) {
+      throw new Error('Could not create the public image URL.');
+    }
+
+    if (urlInput) {
+      urlInput.value = publicUrl;
+    }
+
+    let previewEl = item.querySelector('.gallery-preview');
+
+    if (!previewEl) {
+      const currentPhotoArea = item.querySelector('.field.full');
+
+      if (currentPhotoArea) {
+        const image = document.createElement('img');
+
+        image.className = 'gallery-preview';
+
+        image.style.display = 'block';
+        image.style.width = '100%';
+        image.style.maxWidth = '500px';
+        image.style.maxHeight = '300px';
+        image.style.objectFit = 'cover';
+        image.style.borderRadius = '6px';
+        image.style.marginBottom = '10px';
+        image.style.border = '1px solid #d6ddd4';
+
+        currentPhotoArea.insertBefore(
+          image,
+          currentPhotoArea.children[1]
+        );
+
+        previewEl = image;
       }
-    );
+    }
 
-  if (uploadError) {
-    console.error(
-      uploadError
-    );
+    if (previewEl) {
+      previewEl.src = publicUrl;
+      previewEl.alt =
+        item.querySelector('.gallery-title')?.value.trim() ||
+        'Our Work photo';
+    }
+
+    /*
+      If replacing an older photo, remove the old
+      storage object after the new upload succeeds.
+    */
+    if (oldUrl && oldUrl !== publicUrl) {
+      const oldPath = getStoragePathFromPublicUrl(oldUrl);
+
+      if (oldPath) {
+        await sb.storage
+          .from(GALLERY_BUCKET)
+          .remove([oldPath])
+          .catch(err => console.warn('Old image cleanup failed:', err));
+      }
+    }
 
     if (status) {
       status.textContent =
-        `Upload failed: ${uploadError.message}`;
+        'Photo uploaded. Click "Save gallery" to publish it.';
+      status.style.color = '#287719';
+      status.style.fontWeight = '800';
     }
 
-    return;
-  }
+  } catch (err) {
+    console.error(err);
 
-  const {
-    data: publicData
-  } = sb.storage
-    .from(GALLERY_BUCKET)
-    .getPublicUrl(filePath);
-
-  const publicUrl =
-    publicData?.publicUrl || '';
-
-  if (!publicUrl) {
     if (status) {
       status.textContent =
-        'Photo uploaded, but its public URL could not be created.';
+        `Upload failed: ${err.message || 'Unknown error'}`;
+      status.style.color = '#9d2c2c';
+      status.style.fontWeight = '800';
     }
-
-    return;
-  }
-
-  if (urlInput) {
-    urlInput.value =
-      publicUrl;
-  }
-
-  if (preview) {
-    preview.innerHTML = `
-      <img
-        src="${esc(publicUrl)}"
-        alt="Our Work photo"
-      >
-    `;
-  }
-
-  if (oldUrl) {
-    const oldPath =
-      getStoragePathFromPublicUrl(
-        oldUrl
-      );
-
-    if (oldPath) {
-      await sb.storage
-        .from(GALLERY_BUCKET)
-        .remove([oldPath]);
-    }
-  }
-
-  if (status) {
-    status.textContent =
-      'Photo uploaded. Click Save Gallery to publish the change.';
   }
 }
 
 async function deleteGalleryImage(index) {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
     return;
   }
 
-  const cards = [
-    ...document.querySelectorAll(
-      '.gallery-card'
-    )
-  ];
+  const items = document.querySelectorAll('.gallery-item');
+  const item = items[index];
 
-  const card = cards[index];
-
-  if (!card) return;
+  if (!item) return;
 
   const title =
-    card
-      .querySelector('.gallery-title')
-      ?.value.trim() ||
+    item.querySelector('.gallery-title')?.value.trim() ||
     'this photo';
 
-  if (
-    !confirm(
-      `Delete "${title}"? This cannot be undone.`
-    )
-  ) {
-    return;
-  }
+  const url =
+    item.querySelector('.gallery-url')?.value.trim() ||
+    '';
 
-  const imageUrl =
-    card
-      .querySelector('.gallery-url')
-      ?.value.trim() || '';
+  const confirmed = confirm(
+    `Delete "${title}"?\n\nThis will remove the photo from the gallery.`
+  );
 
-  const storagePath =
-    getStoragePathFromPublicUrl(
-      imageUrl
-    );
+  if (!confirmed) return;
 
-  if (storagePath) {
-    const { error } =
-      await sb.storage
+  try {
+    const path = getStoragePathFromPublicUrl(url);
+
+    if (path) {
+      const { error: storageError } = await sb.storage
         .from(GALLERY_BUCKET)
-        .remove([
-          storagePath
-        ]);
+        .remove([path]);
 
-    if (error) {
-      console.error(
-        'Storage delete error:',
-        error
-      );
+      if (storageError) {
+        console.warn('Storage delete failed:', storageError);
+      }
     }
-  }
 
-  if (imageUrl) {
-    const { error } =
-      await sb
+    if (url) {
+      const { error: dbError } = await sb
         .from('gallery')
         .delete()
-        .eq(
-          'image_url',
-          imageUrl
-        );
+        .eq('image_url', url);
 
-    if (error) {
-      console.error(error);
-
-      setStatus(
-        `Photo file deleted, but database removal failed: ${error.message}`,
-        'error'
-      );
-
-      return;
+      if (dbError) throw dbError;
     }
+
+    await loadGallery();
+
+  } catch (err) {
+    console.error(err);
+
+    setStatus(
+      `Could not delete photo: ${err.message || 'Unknown error'}`,
+      'error'
+    );
   }
-
-  card.remove();
-
-  setStatus(
-    'Photo deleted.',
-    'success'
-  );
 }
 
 async function saveGallery() {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
     return;
   }
 
-  const gallery =
-    collectGallery();
+  const gallery = collectGallery();
 
-  setStatus(
-    'Saving gallery...'
-  );
+  try {
+    setStatus('Saving gallery...');
 
-  const {
-    error: deleteError
-  } = await sb
-    .from('gallery')
-    .delete()
-    .neq('id', 0);
+    const { error: deleteError } = await sb
+      .from('gallery')
+      .delete()
+      .neq('id', 0);
 
-  if (deleteError) {
-    console.error(
-      deleteError
-    );
+    if (deleteError) throw deleteError;
 
-    setStatus(
-      `Could not save gallery: ${deleteError.message}`,
-      'error'
-    );
-
-    return;
-  }
-
-  if (gallery.length) {
-    const { error } =
-      await sb
+    if (gallery.length) {
+      const { error: insertError } = await sb
         .from('gallery')
         .insert(gallery);
 
-    if (error) {
-      console.error(error);
-
-      setStatus(
-        `Could not save gallery: ${error.message}`,
-        'error'
-      );
-
-      return;
+      if (insertError) throw insertError;
     }
+
+    setStatus('Gallery saved.', 'success');
+
+    await loadGallery();
+
+  } catch (err) {
+    console.error(err);
+
+    setStatus(
+      `Could not save gallery: ${err.message || 'Unknown error'}`,
+      'error'
+    );
   }
-
-  setStatus(
-    'Gallery saved successfully.',
-    'success'
-  );
-
-  await loadAll();
 }
 
-/* -----------------------------
+async function loadGallery() {
+  const { data, error } = await sb
+    .from('gallery')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    renderGallery([]);
+    return;
+  }
+
+  renderGallery(data || []);
+}
+
+
+/* -------------------------------------------------
    REVIEWS
------------------------------ */
+------------------------------------------------- */
 
-function renderReviews(items = []) {
-  const container =
-    $('reviewsList');
+function renderReviews(items) {
+  const editor = $('reviewsEditor');
 
-  if (!container) return;
+  if (!editor) return;
 
   if (!items.length) {
-    container.innerHTML = `
-      <div class="empty-state">
+    editor.innerHTML = `
+      <div class="muted">
         No reviews have been added yet.
       </div>
     `;
-
     return;
   }
 
-  container.innerHTML = items
-    .map(
-      item => `
-        <div
-          class="admin-card review-card"
-        >
+  editor.innerHTML = items.map((item, index) => `
+    <div class="list-item review-item" data-index="${index}">
 
-          <label>
-            Customer Name
-            <input
-              class="review-name"
-              type="text"
-              value="${esc(item.name || '')}"
-            >
-          </label>
+      <div class="admin-grid">
 
-          <label>
-            Review
-            <textarea
-              class="review-text"
-            >${esc(item.review || '')}</textarea>
-          </label>
-
-          <label>
-            Rating
-            <input
-              class="review-rating"
-              type="number"
-              min="1"
-              max="5"
-              value="${Number(
-                item.rating || 5
-              )}"
-            >
-          </label>
-
-          <button
-            type="button"
-            class="danger delete-review"
-          >
-            Delete Review
-          </button>
-
+        <div class="field">
+          <label>Customer name</label>
+          <input
+            class="review-name"
+            type="text"
+            value="${esc(item.name || '')}"
+            placeholder="Customer name">
         </div>
-      `
-    )
-    .join('');
 
-  attachReviewDeleteButtons();
-}
+        <div class="field">
+          <label>Rating</label>
+          <select class="review-rating">
+            ${[5,4,3,2,1].map(rating => `
+              <option
+                value="${rating}"
+                ${Number(item.rating || 5) === rating ? 'selected' : ''}>
+                ${rating} stars
+              </option>
+            `).join('')}
+          </select>
+        </div>
 
-function attachReviewDeleteButtons() {
-  document
-    .querySelectorAll('.delete-review')
-    .forEach(button => {
-      button.addEventListener(
-        'click',
-        () => {
-          const card =
-            button.closest(
-              '.review-card'
-            );
+        <div class="field full">
+          <label>Review</label>
+          <textarea
+            class="review-text"
+            placeholder="Customer's actual review">${esc(item.text || item.review || '')}</textarea>
+        </div>
 
-          if (card) {
-            card.remove();
-          }
-        }
-      );
+      </div>
+
+      <div class="admin-actions">
+        <button
+          type="button"
+          class="admin-btn danger delete-review">
+          Delete review
+        </button>
+      </div>
+
+    </div>
+  `).join('');
+
+  editor.querySelectorAll('.delete-review').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('.review-item');
+
+      if (!item) return;
+
+      item.remove();
+
+      if (!editor.querySelector('.review-item')) {
+        renderReviews([]);
+      }
     });
+  });
 }
 
 function collectReviews() {
-  return [
-    ...document.querySelectorAll(
-      '.review-card'
-    )
-  ]
-    .map(card => ({
-      name:
-        card
-          .querySelector('.review-name')
-          ?.value.trim() || '',
+  const reviews = [];
 
-      review:
-        card
-          .querySelector('.review-text')
-          ?.value.trim() || '',
+  document.querySelectorAll('.review-item').forEach(item => {
+    const name =
+      item.querySelector('.review-name')?.value.trim() || '';
 
-      rating:
-        Number(
-          card
-            .querySelector('.review-rating')
-            ?.value
-        ) || 5
-    }))
-    .filter(
-      item =>
-        item.name &&
-        item.review
-    );
-}
+    const rating =
+      Number(item.querySelector('.review-rating')?.value || 5);
 
-async function saveReviews() {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
-    return;
-  }
+    const text =
+      item.querySelector('.review-text')?.value.trim() || '';
 
-  const reviews =
-    collectReviews();
+    if (!text) return;
 
-  setStatus(
-    'Saving reviews...'
-  );
+    reviews.push({
+      name,
+      rating,
+      text
+    });
+  });
 
-  const {
-    error: deleteError
-  } = await sb
-    .from('reviews')
-    .delete()
-    .neq('id', 0);
-
-  if (deleteError) {
-    console.error(
-      deleteError
-    );
-
-    setStatus(
-      `Could not save reviews: ${deleteError.message}`,
-      'error'
-    );
-
-    return;
-  }
-
-  if (reviews.length) {
-    const { error } =
-      await sb
-        .from('reviews')
-        .insert(reviews);
-
-    if (error) {
-      console.error(error);
-
-      setStatus(
-        `Could not save reviews: ${error.message}`,
-        'error'
-      );
-
-      return;
-    }
-  }
-
-  setStatus(
-    'Reviews saved successfully.',
-    'success'
-  );
-
-  await loadAll();
+  return reviews;
 }
 
 function addReview() {
-  const container =
-    $('reviewsList');
+  const editor = $('reviewsEditor');
 
-  if (!container) return;
+  if (!editor) return;
 
-  const card =
-    document.createElement('div');
+  const current = collectReviews();
 
-  card.className =
-    'admin-card review-card';
+  current.push({
+    name: '',
+    rating: 5,
+    text: ''
+  });
 
-  card.innerHTML = `
-    <label>
-      Customer Name
-      <input
-        class="review-name"
-        type="text"
-        placeholder="Customer name"
-      >
-    </label>
+  renderReviews(current);
 
-    <label>
-      Review
-      <textarea
-        class="review-text"
-        placeholder="Customer review"
-      ></textarea>
-    </label>
+  const textareas = editor.querySelectorAll('.review-text');
 
-    <label>
-      Rating
-      <input
-        class="review-rating"
-        type="number"
-        min="1"
-        max="5"
-        value="5"
-      >
-    </label>
-
-    <button
-      type="button"
-      class="danger delete-review"
-    >
-      Delete Review
-    </button>
-  `;
-
-  container.appendChild(card);
-
-  card
-    .querySelector('.delete-review')
-    ?.addEventListener(
-      'click',
-      () => card.remove()
-    );
+  if (textareas.length) {
+    textareas[textareas.length - 1].focus();
+  }
 }
 
-/* -----------------------------
+async function saveReviews() {
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
+    return;
+  }
+
+  const reviews = collectReviews();
+
+  try {
+    setStatus('Saving reviews...');
+
+    const { error: deleteError } = await sb
+      .from('reviews')
+      .delete()
+      .neq('id', 0);
+
+    if (deleteError) throw deleteError;
+
+    if (reviews.length) {
+      const { error: insertError } = await sb
+        .from('reviews')
+        .insert(reviews);
+
+      if (insertError) throw insertError;
+    }
+
+    setStatus('Reviews saved.', 'success');
+
+    await loadReviews();
+
+  } catch (err) {
+    console.error(err);
+
+    setStatus(
+      `Could not save reviews: ${err.message || 'Unknown error'}`,
+      'error'
+    );
+  }
+}
+
+async function loadReviews() {
+  const { data, error } = await sb
+    .from('reviews')
+    .select('*')
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    renderReviews(defaultReviews);
+    return;
+  }
+
+  renderReviews(data || []);
+}
+
+
+/* -------------------------------------------------
    SITE SETTINGS
------------------------------ */
+------------------------------------------------- */
 
-function renderSettings(settings = {}) {
-  const googleReviewUrl =
-    $('googleReviewUrl');
+function renderSettings(settings) {
+  if (!settings) return;
 
-  const leaveReviewUrl =
-    $('leaveReviewUrl');
-
-  const serviceAreaText =
-    $('serviceAreaText');
-
-  if (googleReviewUrl) {
-    googleReviewUrl.value =
+  if ($('googleUrl')) {
+    $('googleUrl').value =
       settings.google_review_url || '';
   }
 
-  if (leaveReviewUrl) {
-    leaveReviewUrl.value =
+  if ($('leaveReviewUrl')) {
+    $('leaveReviewUrl').value =
       settings.leave_review_url || '';
   }
 
-  if (serviceAreaText) {
-    serviceAreaText.value =
+  if ($('areaText')) {
+    $('areaText').value =
       settings.service_area_text || '';
   }
 }
 
 async function saveSettings() {
-  if (!user || !isOwner(user)) {
-    setStatus(
-      'Incorrect admin login.',
-      'error'
-    );
+  if (!sb || !user || !isOwner(user)) {
+    setStatus('You must be signed in as the owner.', 'error');
     return;
   }
 
-  const settings = {
+  const values = {
     id: 1,
-
     google_review_url:
-      $('googleReviewUrl')
-        ?.value.trim() || '',
-
+      $('googleUrl')?.value.trim() || '',
     leave_review_url:
-      $('leaveReviewUrl')
-        ?.value.trim() || '',
-
+      $('leaveReviewUrl')?.value.trim() || '',
     service_area_text:
-      $('serviceAreaText')
-        ?.value.trim() || ''
+      $('areaText')?.value.trim() || ''
   };
 
-  setStatus(
-    'Saving site settings...'
-  );
+  try {
+    setSectionStatus(
+      'settingsStatus',
+      'Saving settings...'
+    );
 
-  const { error } =
-    await sb
+    const { error } = await sb
       .from('site_settings')
-      .upsert(settings);
+      .upsert(values, {
+        onConflict: 'id'
+      });
+
+    if (error) throw error;
+
+    setSectionStatus(
+      'settingsStatus',
+      'Settings saved.',
+      'success'
+    );
+
+  } catch (err) {
+    console.error(err);
+
+    setSectionStatus(
+      'settingsStatus',
+      `Could not save settings: ${err.message || 'Unknown error'}`,
+      'error'
+    );
+  }
+}
+
+async function loadSettings() {
+  const { data, error } = await sb
+    .from('site_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
 
   if (error) {
     console.error(error);
-
-    setStatus(
-      `Could not save settings: ${error.message}`,
-      'error'
-    );
-
     return;
   }
 
-  setStatus(
-    'Site settings saved successfully.',
-    'success'
-  );
+  renderSettings(data || {});
 }
 
-/* -----------------------------
+
+/* -------------------------------------------------
    LOAD EVERYTHING
------------------------------ */
+------------------------------------------------- */
 
 async function loadAll() {
-  if (!sb || !user || !isOwner(user)) {
-    return;
-  }
+  if (!sb || !user || !isOwner(user)) return;
 
-  const [
-    servicesResult,
-    galleryResult,
-    reviewsResult,
-    settingsResult
-  ] = await Promise.all([
-    sb
-      .from('services')
-      .select('*')
-      .order('id', {
-        ascending: true
-      }),
+  try {
+    await Promise.all([
+      loadServices(),
+      loadGallery(),
+      loadReviews(),
+      loadSettings()
+    ]);
 
-    sb
-      .from('gallery')
-      .select('*')
-      .order('sort_order', {
-        ascending: true
-      }),
+  } catch (err) {
+    console.error('Dashboard loading error:', err);
 
-    sb
-      .from('reviews')
-      .select('*')
-      .order('id', {
-        ascending: true
-      }),
-
-    sb
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-  ]);
-
-  if (servicesResult.error) {
-    console.error(
-      'Services:',
-      servicesResult.error
+    setStatus(
+      'Some dashboard information could not be loaded.',
+      'error'
     );
   }
-
-  if (galleryResult.error) {
-    console.error(
-      'Gallery:',
-      galleryResult.error
-    );
-  }
-
-  if (reviewsResult.error) {
-    console.error(
-      'Reviews:',
-      reviewsResult.error
-    );
-  }
-
-  if (settingsResult.error) {
-    console.error(
-      'Settings:',
-      settingsResult.error
-    );
-  }
-
-  /*
-    Existing Supabase information is loaded first.
-    Defaults are only used if there are no services.
-  */
-
-  const services =
-    servicesResult.data?.length
-      ? servicesResult.data
-      : defaultServices;
-
-  const gallery =
-    galleryResult.data || [];
-
-  const reviews =
-    reviewsResult.data || [];
-
-  const settings =
-    settingsResult.data || {};
-
-  renderServices(
-    services
-  );
-
-  renderGallery(
-    gallery
-  );
-
-  renderReviews(
-    reviews
-  );
-
-  renderSettings(
-    settings
-  );
 }
 
-/* -----------------------------
+
+/* -------------------------------------------------
    EVENT LISTENERS
------------------------------ */
+------------------------------------------------- */
 
 function setupEventListeners() {
 
-  /*
-    Login button.
-  */
-  $('signInBtn')
-    ?.addEventListener(
-      'click',
-      event => {
+  const signInBtn = $('signInBtn');
+
+  if (signInBtn) {
+    signInBtn.addEventListener('click', event => {
+      event.preventDefault();
+      signIn();
+    });
+  }
+
+  const passwordInput = $('passwordInput');
+
+  if (passwordInput) {
+    passwordInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
         event.preventDefault();
         signIn();
       }
-    );
+    });
+  }
 
-  /*
-    Login form.
-    This also makes pressing Enter work.
-  */
-  $('loginForm')
-    ?.addEventListener(
-      'submit',
-      event => {
+  const emailInput = $('emailInput');
+
+  if (emailInput) {
+    emailInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
         event.preventDefault();
         signIn();
       }
-    );
+    });
+  }
 
-  $('password')
-    ?.addEventListener(
-      'keydown',
-      event => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          signIn();
-        }
-      }
-    );
+  const signOutBtn = $('signOut');
 
-  $('signOutBtn')
-    ?.addEventListener(
-      'click',
-      signOut
-    );
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', event => {
+      event.preventDefault();
+      signOut();
+    });
+  }
 
-  $('saveServices')
-    ?.addEventListener(
-      'click',
-      saveServices
-    );
+  const saveSettingsBtn = $('saveSettings');
 
-  $('addService')
-    ?.addEventListener(
-      'click',
-      addService
-    );
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', event => {
+      event.preventDefault();
+      saveSettings();
+    });
+  }
 
-  $('saveGallery')
-    ?.addEventListener(
-      'click',
-      saveGallery
-    );
+  const addServiceBtn = $('addService');
 
-  $('addGallery')
-    ?.addEventListener(
-      'click',
-      addGallery
-    );
+  if (addServiceBtn) {
+    addServiceBtn.addEventListener('click', event => {
+      event.preventDefault();
+      addService();
+    });
+  }
 
-  $('saveReviews')
-    ?.addEventListener(
-      'click',
-      saveReviews
-    );
+  const saveServicesBtn = $('saveServices');
 
-  $('addReview')
-    ?.addEventListener(
-      'click',
-      addReview
-    );
+  if (saveServicesBtn) {
+    saveServicesBtn.addEventListener('click', event => {
+      event.preventDefault();
+      saveServices();
+    });
+  }
 
-  $('saveSettings')
-    ?.addEventListener(
-      'click',
-      saveSettings
-    );
+  const addGalleryBtn = $('addGallery');
+
+  if (addGalleryBtn) {
+    addGalleryBtn.addEventListener('click', event => {
+      event.preventDefault();
+      addGallery();
+    });
+  }
+
+  const saveGalleryBtn = $('saveGallery');
+
+  if (saveGalleryBtn) {
+    saveGalleryBtn.addEventListener('click', event => {
+      event.preventDefault();
+      saveGallery();
+    });
+  }
+
+  const addReviewBtn = $('addReview');
+
+  if (addReviewBtn) {
+    addReviewBtn.addEventListener('click', event => {
+      event.preventDefault();
+      addReview();
+    });
+  }
+
+  const saveReviewsBtn = $('saveReviews');
+
+  if (saveReviewsBtn) {
+    saveReviewsBtn.addEventListener('click', event => {
+      event.preventDefault();
+      saveReviews();
+    });
+  }
 }
 
-/* -----------------------------
-   AUTH STATE
------------------------------ */
+
+/* -------------------------------------------------
+   AUTH SESSION
+------------------------------------------------- */
 
 function setupAuthListener() {
   if (!sb) return;
 
-  sb.auth.onAuthStateChange(
-    (event, session) => {
+  sb.auth.onAuthStateChange(async (_event, session) => {
 
-      if (event === 'SIGNED_OUT') {
-        user = null;
-        showLogin();
-        return;
-      }
+    const currentUser = session?.user || null;
 
-      if (!session?.user) {
-        return;
-      }
-
-      /*
-        Valid owner session.
-      */
-      if (isOwner(session.user)) {
-        user = session.user;
-        showDashboard();
-        return;
-      }
-
-      /*
-        Not the owner.
-      */
-      sb.auth.signOut();
-
+    if (!currentUser) {
       user = null;
+      showLogin();
+      return;
+    }
 
+    if (!isOwner(currentUser)) {
+      await sb.auth.signOut();
+      user = null;
+      showLogin();
+      setStatus(
+        'This account is not authorized to access the owner dashboard.',
+        'error'
+      );
+      return;
+    }
+
+    user = currentUser;
+
+    showDashboard();
+
+    await loadAll();
+  });
+}
+
+
+/* -------------------------------------------------
+   INITIAL CHECK
+------------------------------------------------- */
+
+async function check() {
+
+  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !C.OWNER_EMAIL) {
+    showSetup();
+
+    return;
+  }
+
+  if (!initializeSupabase()) {
+    showSetup();
+
+    return;
+  }
+
+  try {
+
+    const {
+      data: { session }
+    } = await sb.auth.getSession();
+
+    if (!session?.user) {
+      user = null;
+      showLogin();
+      return;
+    }
+
+    if (!isOwner(session.user)) {
+      await sb.auth.signOut();
+      user = null;
       showLogin();
 
       setStatus(
-        'Incorrect admin login.',
+        'This account is not authorized to access the owner dashboard.',
         'error'
       );
-    }
-  );
-}
 
-/* -----------------------------
-   CHECK EXISTING LOGIN
------------------------------ */
-
-async function check() {
-  if (!sb) {
-    if (!initializeSupabase()) {
       return;
     }
-  }
 
-  const {
-    data,
-    error
-  } = await sb.auth.getSession();
-
-  if (error) {
-    console.error(
-      'Session error:',
-      error
-    );
-
-    showLogin();
-
-    return;
-  }
-
-  const session =
-    data?.session;
-
-  /*
-    No existing login.
-    Show login page.
-  */
-  if (!session?.user) {
-    user = null;
-    showLogin();
-    return;
-  }
-
-  /*
-    Existing authenticated owner.
-    Go directly to dashboard.
-  */
-  if (isOwner(session.user)) {
     user = session.user;
 
     showDashboard();
 
     await loadAll();
 
-    return;
+  } catch (err) {
+    console.error(err);
+
+    user = null;
+    showLogin();
+
+    setStatus(
+      'Unable to check your login session.',
+      'error'
+    );
   }
+}
 
-  /*
-    Logged into Supabase but not
-    the configured admin account.
-  */
-  await sb.auth.signOut();
 
-  user = null;
+/* -------------------------------------------------
+   START
+------------------------------------------------- */
+
+document.addEventListener('DOMContentLoaded', async () => {
 
   showLogin();
 
-  setStatus(
-    'Incorrect admin login.',
-    'error'
-  );
-}
+  setupEventListeners();
 
-/* -----------------------------
-   START ADMIN PAGE
------------------------------ */
-
-document.addEventListener(
-  'DOMContentLoaded',
-  async () => {
-
-    /*
-      Always begin on login screen
-      until an existing owner session
-      is confirmed.
-    */
-    showLogin();
-
-    setupEventListeners();
-
-    if (!initializeSupabase()) {
-      showSetup();
-      return;
-    }
-
-    setupAuthListener();
-
-    await check();
+  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !C.OWNER_EMAIL) {
+    showSetup();
+    return;
   }
-);
+
+  if (!initializeSupabase()) {
+    showSetup();
+    return;
+  }
+
+  setupAuthListener();
+
+  await check();
+});
