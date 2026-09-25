@@ -1,3 +1,5 @@
+alert("ADMIN JS LOADED");
+
 const C = window.PAIRLINE_CONFIG || {};
 
 let sb = null;
@@ -151,6 +153,7 @@ function initializeSupabase() {
 
 /* -------------------------------------------------
    LOGIN
+   BEST SIGN IN FEATURE - DO NOT CHANGE
 ------------------------------------------------- */
 
 async function signIn() {
@@ -199,12 +202,10 @@ async function signIn() {
     if (!isOwner(signedInUser)) {
       await sb.auth.signOut();
       user = null;
-
       setStatus(
         'This account is not authorized to access the owner dashboard.',
         'error'
       );
-
       return;
     }
 
@@ -217,7 +218,10 @@ async function signIn() {
 
   } catch (err) {
     console.error(err);
-    setStatus('Unable to sign in. Please try again.', 'error');
+    setStatus(
+      'Unable to sign in. Please try again.',
+      'error'
+    );
   }
 }
 
@@ -265,7 +269,10 @@ function renderServices(items) {
   }
 
   editor.innerHTML = items.map((item, index) => `
-    <div class="list-item service-item" data-index="${index}">
+    <div
+      class="list-item service-item"
+      data-index="${index}"
+      data-existing-id="${esc(item.id || '')}">
 
       <div class="admin-grid">
 
@@ -274,7 +281,7 @@ function renderServices(items) {
           <input
             class="service-title"
             type="text"
-            value="${esc(item.title || '')}"
+            value="${esc(item.title || item.name || '')}"
             placeholder="Service name">
         </div>
 
@@ -318,7 +325,7 @@ function renderServices(items) {
 function collectServices() {
   const items = [];
 
-  document.querySelectorAll('.service-item').forEach(item => {
+  document.querySelectorAll('.service-item').forEach((item, index) => {
     const title =
       item.querySelector('.service-title')?.value.trim() || '';
 
@@ -329,7 +336,9 @@ function collectServices() {
 
     items.push({
       title,
-      description
+      description,
+      sort_order: index,
+      published: true
     });
   });
 
@@ -345,13 +354,14 @@ function addService() {
 
   current.push({
     title: '',
-    description: ''
+    description: '',
+    sort_order: current.length,
+    published: true
   });
 
   renderServices(current);
 
-  const inputs =
-    editor.querySelectorAll('.service-title');
+  const inputs = editor.querySelectorAll('.service-title');
 
   if (inputs.length) {
     inputs[inputs.length - 1].focus();
@@ -372,25 +382,34 @@ async function saveServices() {
   try {
     setStatus('Saving services...');
 
-    const { error: deleteError } =
-      await sb
+    const { data: existing, error: existingError } = await sb
+      .from('services')
+      .select('id');
+
+    if (existingError) throw existingError;
+
+    if (existing?.length) {
+      const { error: deleteError } = await sb
         .from('services')
         .delete()
-        .neq('id', 0);
+        .in(
+          'id',
+          existing.map(row => row.id)
+        );
 
-    if (deleteError) throw deleteError;
+      if (deleteError) throw deleteError;
+    }
 
     if (services.length) {
-      const { error: insertError } =
-        await sb
-          .from('services')
-          .insert(services);
+      const { error: insertError } = await sb
+        .from('services')
+        .insert(services);
 
       if (insertError) throw insertError;
     }
 
     setStatus(
-      'Services saved.',
+      'Services saved. Customers can now see the changes.',
       'success'
     );
 
@@ -407,13 +426,11 @@ async function saveServices() {
 }
 
 async function loadServices() {
-  const { data, error } =
-    await sb
-      .from('services')
-      .select('*')
-      .order('id', {
-        ascending: true
-      });
+  const { data, error } = await sb
+    .from('services')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
 
   if (error) {
     console.error(error);
@@ -421,11 +438,7 @@ async function loadServices() {
     return;
   }
 
-  if (data && data.length) {
-    renderServices(data);
-  } else {
-    renderServices(defaultServices);
-  }
+  renderServices(data || []);
 }
 
 
@@ -482,28 +495,33 @@ function renderGallery(items) {
 
         <div class="field">
           <label>Photo title</label>
-
           <input
             class="gallery-title"
             type="text"
-            value="${esc(item.title || '')}"
+            value="${esc(
+              item.title ||
+              item.caption ||
+              ''
+            )}"
             placeholder="Example: Backyard cleanup">
         </div>
 
         <div class="field">
           <label>Sort order</label>
-
           <input
             class="gallery-sort"
             type="number"
-            value="${esc(item.sort_order ?? index)}"
+            value="${esc(
+              item.sort_order ?? index
+            )}"
             min="0">
         </div>
 
         <div class="field full">
           <label>Current photo</label>
 
-          <div>
+          <div class="current-photo-area">
+
             ${
               item.image_url
                 ? `
@@ -512,6 +530,7 @@ function renderGallery(items) {
                     src="${esc(item.image_url)}"
                     alt="${esc(
                       item.title ||
+                      item.caption ||
                       'Our Work photo'
                     )}"
                     style="
@@ -531,6 +550,7 @@ function renderGallery(items) {
                   </div>
                 `
             }
+
           </div>
         </div>
 
@@ -574,8 +594,7 @@ function renderGallery(items) {
     </div>
   `).join('');
 
-  editor
-    .querySelectorAll('.upload-gallery')
+  editor.querySelectorAll('.upload-gallery')
     .forEach(button => {
 
       button.addEventListener('click', () => {
@@ -585,16 +604,15 @@ function renderGallery(items) {
 
         if (!item) return;
 
-        const index = [
-          ...editor.querySelectorAll('.gallery-item')
-        ].indexOf(item);
+        const index =
+          [...editor.querySelectorAll('.gallery-item')]
+            .indexOf(item);
 
         uploadGalleryImage(index);
       });
     });
 
-  editor
-    .querySelectorAll('.delete-gallery')
+  editor.querySelectorAll('.delete-gallery')
     .forEach(button => {
 
       button.addEventListener('click', () => {
@@ -604,9 +622,9 @@ function renderGallery(items) {
 
         if (!item) return;
 
-        const index = [
-          ...editor.querySelectorAll('.gallery-item')
-        ].indexOf(item);
+        const index =
+          [...editor.querySelectorAll('.gallery-item')]
+            .indexOf(item);
 
         deleteGalleryImage(index);
       });
@@ -616,8 +634,7 @@ function renderGallery(items) {
 function collectGallery() {
   const items = [];
 
-  document
-    .querySelectorAll('.gallery-item')
+  document.querySelectorAll('.gallery-item')
     .forEach(item => {
 
       const title =
@@ -634,12 +651,19 @@ function collectGallery() {
             ?.value || 0
         );
 
+      /*
+        A gallery slot without an image is allowed
+        while the admin is editing, but it will not
+        be published until an image exists.
+      */
       if (!image_url) return;
 
       items.push({
         title,
+        caption: title,
         image_url,
-        sort_order
+        sort_order,
+        published: true
       });
     });
 
@@ -655,21 +679,124 @@ function addGallery() {
 
   current.push({
     title: '',
+    caption: '',
     image_url: '',
-    sort_order: current.length
+    sort_order: current.length,
+    published: true
   });
 
-  renderGallery(current);
+  /*
+    renderGallery normally removes an empty slot because
+    collectGallery ignores empty image URLs. Therefore,
+    create the slot directly here when adding a new photo.
+  */
 
-  const items =
-    editor.querySelectorAll('.gallery-item');
+  const newItem = document.createElement('div');
 
-  if (items.length) {
-    items[items.length - 1].scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
+  newItem.className =
+    'list-item gallery-item';
+
+  newItem.innerHTML = `
+    <div class="admin-grid">
+
+      <div class="field">
+        <label>Photo title</label>
+        <input
+          class="gallery-title"
+          type="text"
+          placeholder="Example: Backyard cleanup">
+      </div>
+
+      <div class="field">
+        <label>Sort order</label>
+        <input
+          class="gallery-sort"
+          type="number"
+          value="${current.length - 1}"
+          min="0">
+      </div>
+
+      <div class="field full">
+        <label>Current photo</label>
+
+        <div class="current-photo-area">
+          <div class="muted">
+            No photo uploaded yet.
+          </div>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label>Upload photo</label>
+
+        <input
+          class="gallery-file"
+          type="file"
+          accept="image/*">
+
+        <input
+          class="gallery-url"
+          type="hidden"
+          value="">
+      </div>
+
+    </div>
+
+    <div class="admin-actions">
+
+      <button
+        type="button"
+        class="admin-btn upload-gallery">
+        Upload / Replace Photo
+      </button>
+
+      <button
+        type="button"
+        class="admin-btn danger delete-gallery">
+        Delete Photo
+      </button>
+
+    </div>
+
+    <div
+      class="gallery-status muted"
+      style="margin-top:10px">
+    </div>
+  `;
+
+  editor.appendChild(newItem);
+
+  newItem
+    .querySelector('.upload-gallery')
+    .addEventListener('click', () => {
+
+      const items =
+        [...editor.querySelectorAll('.gallery-item')];
+
+      uploadGalleryImage(items.indexOf(newItem));
     });
-  }
+
+  newItem
+    .querySelector('.delete-gallery')
+    .addEventListener('click', () => {
+
+      const confirmed = confirm(
+        'Delete this new photo slot?'
+      );
+
+      if (confirmed) {
+        newItem.remove();
+      }
+    });
+
+  newItem.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+
+  newItem
+    .querySelector('.gallery-title')
+    ?.focus();
 }
 
 async function uploadGalleryImage(index) {
@@ -701,36 +828,36 @@ async function uploadGalleryImage(index) {
     fileInput?.files?.[0];
 
   if (!file) {
+
     if (status) {
       status.textContent =
         'Choose a photo first.';
 
-      status.style.color =
-        '#9d2c2c';
+      status.style.color = '#9d2c2c';
     }
 
     return;
   }
 
   if (!file.type.startsWith('image/')) {
+
     if (status) {
       status.textContent =
         'Please choose an image file.';
 
-      status.style.color =
-        '#9d2c2c';
+      status.style.color = '#9d2c2c';
     }
 
     return;
   }
 
   if (file.size > 10 * 1024 * 1024) {
+
     if (status) {
       status.textContent =
         'Photo must be 10 MB or smaller.';
 
-      status.style.color =
-        '#9d2c2c';
+      status.style.color = '#9d2c2c';
     }
 
     return;
@@ -743,6 +870,7 @@ async function uploadGalleryImage(index) {
         'Uploading photo...';
 
       status.style.color = '';
+      status.style.fontWeight = '';
     }
 
     const oldUrl =
@@ -751,14 +879,19 @@ async function uploadGalleryImage(index) {
     const path =
       createGalleryFileName(file);
 
-    const { error: uploadError } =
-      await sb.storage
-        .from(GALLERY_BUCKET)
-        .upload(path, file, {
+    const {
+      error: uploadError
+    } = await sb.storage
+      .from(GALLERY_BUCKET)
+      .upload(
+        path,
+        file,
+        {
           cacheControl: '3600',
           upsert: false,
           contentType: file.type
-        });
+        }
+      );
 
     if (uploadError) {
       throw uploadError;
@@ -766,10 +899,9 @@ async function uploadGalleryImage(index) {
 
     const {
       data: publicData
-    } =
-      sb.storage
-        .from(GALLERY_BUCKET)
-        .getPublicUrl(path);
+    } = sb.storage
+      .from(GALLERY_BUCKET)
+      .getPublicUrl(path);
 
     const publicUrl =
       publicData?.publicUrl;
@@ -791,9 +923,13 @@ async function uploadGalleryImage(index) {
     if (!previewEl) {
 
       const currentPhotoArea =
-        item.querySelector('.field.full');
+        item.querySelector(
+          '.current-photo-area'
+        );
 
       if (currentPhotoArea) {
+
+        currentPhotoArea.innerHTML = '';
 
         const image =
           document.createElement('img');
@@ -825,13 +961,11 @@ async function uploadGalleryImage(index) {
         image.style.border =
           '1px solid #d6ddd4';
 
-        currentPhotoArea.insertBefore(
-          image,
-          currentPhotoArea.children[1]
+        currentPhotoArea.appendChild(
+          image
         );
 
-        previewEl =
-          image;
+        previewEl = image;
       }
     }
 
@@ -841,40 +975,27 @@ async function uploadGalleryImage(index) {
         publicUrl;
 
       previewEl.alt =
-        item.querySelector('.gallery-title')
-          ?.value.trim() ||
+        item.querySelector(
+          '.gallery-title'
+        )?.value.trim() ||
         'Our Work photo';
     }
 
     /*
-      If replacing an older photo,
-      remove the old storage object
-      after the new upload succeeds.
+      IMPORTANT:
+      The old storage image is NOT deleted here.
+
+      That means if the admin uploads a replacement
+      but decides not to save the gallery, the old
+      saved image is still safe.
+
+      The new image becomes the slot's current draft.
     */
-
-    if (oldUrl && oldUrl !== publicUrl) {
-
-      const oldPath =
-        getStoragePathFromPublicUrl(oldUrl);
-
-      if (oldPath) {
-
-        await sb.storage
-          .from(GALLERY_BUCKET)
-          .remove([oldPath])
-          .catch(err =>
-            console.warn(
-              'Old image cleanup failed:',
-              err
-            )
-          );
-      }
-    }
 
     if (status) {
 
       status.textContent =
-        'Photo uploaded. Click "Save gallery" to publish it.';
+        'Photo uploaded. Click "Save gallery" to publish this change.';
 
       status.style.color =
         '#287719';
@@ -905,7 +1026,6 @@ async function uploadGalleryImage(index) {
 }
 
 async function deleteGalleryImage(index) {
-
   if (!sb || !user || !isOwner(user)) {
     setStatus(
       'You must be signed in as the owner.',
@@ -917,18 +1037,21 @@ async function deleteGalleryImage(index) {
   const items =
     document.querySelectorAll('.gallery-item');
 
-  const item = items[index];
+  const item =
+    items[index];
 
   if (!item) return;
 
   const title =
-    item.querySelector('.gallery-title')
-      ?.value.trim() ||
+    item.querySelector(
+      '.gallery-title'
+    )?.value.trim() ||
     'this photo';
 
   const url =
-    item.querySelector('.gallery-url')
-      ?.value.trim() ||
+    item.querySelector(
+      '.gallery-url'
+    )?.value.trim() ||
     '';
 
   const confirmed =
@@ -940,20 +1063,45 @@ async function deleteGalleryImage(index) {
 
   try {
 
+    /*
+      Delete the database record first.
+    */
+
+    if (url) {
+
+      const {
+        error: dbError
+      } = await sb
+        .from('gallery')
+        .delete()
+        .eq(
+          'image_url',
+          url
+        );
+
+      if (dbError) {
+        throw dbError;
+      }
+    }
+
+    /*
+      Remove the storage file too.
+    */
+
     const path =
-      getStoragePathFromPublicUrl(url);
+      getStoragePathFromPublicUrl(
+        url
+      );
 
     if (path) {
 
       const {
         error: storageError
-      } =
-        await sb.storage
-          .from(GALLERY_BUCKET)
-          .remove([path]);
+      } = await sb.storage
+        .from(GALLERY_BUCKET)
+        .remove([path]);
 
       if (storageError) {
-
         console.warn(
           'Storage delete failed:',
           storageError
@@ -961,20 +1109,12 @@ async function deleteGalleryImage(index) {
       }
     }
 
-    if (url) {
-
-      const {
-        error: dbError
-      } =
-        await sb
-          .from('gallery')
-          .delete()
-          .eq('image_url', url);
-
-      if (dbError) throw dbError;
-    }
-
     await loadGallery();
+
+    setStatus(
+      'Photo deleted.',
+      'success'
+    );
 
   } catch (err) {
 
@@ -991,7 +1131,6 @@ async function deleteGalleryImage(index) {
 }
 
 async function saveGallery() {
-
   if (!sb || !user || !isOwner(user)) {
     setStatus(
       'You must be signed in as the owner.',
@@ -1010,33 +1149,95 @@ async function saveGallery() {
     );
 
     const {
-      error: deleteError
-    } =
-      await sb
+      data: existing,
+      error: existingError
+    } = await sb
+      .from('gallery')
+      .select('*');
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    /*
+      Save the new database version first.
+    */
+
+    if (existing?.length) {
+
+      const {
+        error: deleteError
+      } = await sb
         .from('gallery')
         .delete()
-        .neq('id', 0);
+        .in(
+          'id',
+          existing.map(
+            row => row.id
+          )
+        );
 
-    if (deleteError) {
-      throw deleteError;
+      if (deleteError) {
+        throw deleteError;
+      }
     }
 
     if (gallery.length) {
 
       const {
         error: insertError
-      } =
-        await sb
-          .from('gallery')
-          .insert(gallery);
+      } = await sb
+        .from('gallery')
+        .insert(gallery);
 
       if (insertError) {
         throw insertError;
       }
     }
 
+    /*
+      Remove storage files that are no longer
+      referenced by the saved gallery.
+    */
+
+    const oldUrls =
+      (existing || [])
+        .map(row => row.image_url)
+        .filter(Boolean);
+
+    const newUrls =
+      gallery
+        .map(row => row.image_url)
+        .filter(Boolean);
+
+    const removedUrls =
+      oldUrls.filter(
+        url => !newUrls.includes(url)
+      );
+
+    for (const oldUrl of removedUrls) {
+
+      const oldPath =
+        getStoragePathFromPublicUrl(
+          oldUrl
+        );
+
+      if (oldPath) {
+
+        await sb.storage
+          .from(GALLERY_BUCKET)
+          .remove([oldPath])
+          .catch(err => {
+            console.warn(
+              'Old image cleanup failed:',
+              err
+            );
+          });
+      }
+    }
+
     setStatus(
-      'Gallery saved.',
+      'Gallery saved. Customers can now see the changes.',
       'success'
     );
 
@@ -1061,16 +1262,21 @@ async function loadGallery() {
   const {
     data,
     error
-  } =
-    await sb
-      .from('gallery')
-      .select('*')
-      .order('sort_order', {
+  } = await sb
+    .from('gallery')
+    .select('*')
+    .order(
+      'sort_order',
+      {
         ascending: true
-      })
-      .order('id', {
+      }
+    )
+    .order(
+      'id',
+      {
         ascending: true
-      });
+      }
+    );
 
   if (error) {
 
@@ -1091,12 +1297,54 @@ async function loadGallery() {
    REVIEWS
 ------------------------------------------------- */
 
+function ensureAddReviewButton() {
+
+  const editor =
+    $('reviewsEditor');
+
+  if (!editor) return;
+
+  if ($('addReview')) return;
+
+  const button =
+    document.createElement('button');
+
+  button.type =
+    'button';
+
+  button.id =
+    'addReview';
+
+  button.className =
+    'admin-btn';
+
+  button.textContent =
+    'Add Review';
+
+  button.addEventListener(
+    'click',
+    event => {
+
+      event.preventDefault();
+
+      addReview();
+    }
+  );
+
+  editor.parentElement?.insertBefore(
+    button,
+    editor
+  );
+}
+
 function renderReviews(items) {
 
   const editor =
     $('reviewsEditor');
 
   if (!editor) return;
+
+  ensureAddReviewButton();
 
   if (!items.length) {
 
@@ -1110,10 +1358,13 @@ function renderReviews(items) {
   }
 
   editor.innerHTML =
-    items.map((item, index) => `
+    items.map(
+      (item, index) => `
+
       <div
         class="list-item review-item"
-        data-index="${index}">
+        data-index="${index}"
+        data-existing-id="${esc(item.id || '')}">
 
         <div class="admin-grid">
 
@@ -1128,21 +1379,40 @@ function renderReviews(items) {
           </div>
 
           <div class="field">
+            <label>Review title</label>
+
+            <input
+              class="review-title"
+              type="text"
+              value="${esc(item.title || '')}"
+              placeholder="Example: Great service">
+          </div>
+
+          <div class="field">
             <label>Rating</label>
 
-            <select class="review-rating">
+            <select
+              class="review-rating">
 
-              ${[5,4,3,2,1].map(rating => `
-                <option
-                  value="${rating}"
-                  ${
-                    Number(item.rating || 5) === rating
-                      ? 'selected'
-                      : ''
-                  }>
-                  ${rating} stars
-                </option>
-              `).join('')}
+              ${[5,4,3,2,1]
+                .map(
+                  rating => `
+
+                  <option
+                    value="${rating}"
+                    ${
+                      Number(
+                        item.rating || 5
+                      ) === rating
+                        ? 'selected'
+                        : ''
+                    }>
+                    ${rating} stars
+                  </option>
+
+                `
+                )
+                .join('')}
 
             </select>
           </div>
@@ -1172,29 +1442,50 @@ function renderReviews(items) {
         </div>
 
       </div>
-    `).join('');
+    `
+    ).join('');
 
   editor
-    .querySelectorAll('.delete-review')
+    .querySelectorAll(
+      '.delete-review'
+    )
     .forEach(button => {
 
-      button.addEventListener('click', () => {
+      button.addEventListener(
+        'click',
+        () => {
 
-        const item =
-          button.closest('.review-item');
+          const item =
+            button.closest(
+              '.review-item'
+            );
 
-        if (!item) return;
+          if (!item) return;
 
-        item.remove();
+          const name =
+            item.querySelector(
+              '.review-name'
+            )?.value.trim() ||
+            'this review';
 
-        if (
-          !editor.querySelector(
-            '.review-item'
-          )
-        ) {
-          renderReviews([]);
+          const confirmed =
+            confirm(
+              `Delete "${name}"?\n\nThis review will be removed when you save the reviews.`
+            );
+
+          if (!confirmed) return;
+
+          item.remove();
+
+          if (
+            !editor.querySelector(
+              '.review-item'
+            )
+          ) {
+            renderReviews([]);
+          }
         }
-      });
+      );
     });
 }
 
@@ -1203,31 +1494,46 @@ function collectReviews() {
   const reviews = [];
 
   document
-    .querySelectorAll('.review-item')
+    .querySelectorAll(
+      '.review-item'
+    )
     .forEach(item => {
 
       const name =
-        item.querySelector('.review-name')
-          ?.value.trim() ||
+        item.querySelector(
+          '.review-name'
+        )?.value.trim() ||
+        '';
+
+      const title =
+        item.querySelector(
+          '.review-title'
+        )?.value.trim() ||
         '';
 
       const rating =
         Number(
-          item.querySelector('.review-rating')
-            ?.value || 5
+          item.querySelector(
+            '.review-rating'
+          )?.value ||
+          5
         );
 
       const text =
-        item.querySelector('.review-text')
-          ?.value.trim() ||
+        item.querySelector(
+          '.review-text'
+        )?.value.trim() ||
         '';
 
       if (!text) return;
 
       reviews.push({
         name,
+        title,
+        text,
         rating,
-        text
+        sort_order: reviews.length,
+        published: true
       });
     });
 
@@ -1246,8 +1552,11 @@ function addReview() {
 
   current.push({
     name: '',
+    title: '',
     rating: 5,
-    text: ''
+    text: '',
+    sort_order: current.length,
+    published: true
   });
 
   renderReviews(
@@ -1270,10 +1579,12 @@ function addReview() {
 async function saveReviews() {
 
   if (!sb || !user || !isOwner(user)) {
+
     setStatus(
       'You must be signed in as the owner.',
       'error'
     );
+
     return;
   }
 
@@ -1287,25 +1598,42 @@ async function saveReviews() {
     );
 
     const {
-      error: deleteError
-    } =
-      await sb
+      data: existing,
+      error: existingError
+    } = await sb
+      .from('reviews')
+      .select('id');
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (existing?.length) {
+
+      const {
+        error: deleteError
+      } = await sb
         .from('reviews')
         .delete()
-        .neq('id', 0);
+        .in(
+          'id',
+          existing.map(
+            row => row.id
+          )
+        );
 
-    if (deleteError) {
-      throw deleteError;
+      if (deleteError) {
+        throw deleteError;
+      }
     }
 
     if (reviews.length) {
 
       const {
         error: insertError
-      } =
-        await sb
-          .from('reviews')
-          .insert(reviews);
+      } = await sb
+        .from('reviews')
+        .insert(reviews);
 
       if (insertError) {
         throw insertError;
@@ -1313,7 +1641,7 @@ async function saveReviews() {
     }
 
     setStatus(
-      'Reviews saved.',
+      'Reviews saved. Customers can now see the changes.',
       'success'
     );
 
@@ -1338,13 +1666,21 @@ async function loadReviews() {
   const {
     data,
     error
-  } =
-    await sb
-      .from('reviews')
-      .select('*')
-      .order('id', {
+  } = await sb
+    .from('reviews')
+    .select('*')
+    .order(
+      'sort_order',
+      {
         ascending: true
-      });
+      }
+    )
+    .order(
+      'id',
+      {
+        ascending: true
+      }
+    );
 
   if (error) {
 
@@ -1396,10 +1732,12 @@ function renderSettings(settings) {
 async function saveSettings() {
 
   if (!sb || !user || !isOwner(user)) {
+
     setStatus(
       'You must be signed in as the owner.',
       'error'
     );
+
     return;
   }
 
@@ -1432,12 +1770,14 @@ async function saveSettings() {
 
     const {
       error
-    } =
-      await sb
-        .from('site_settings')
-        .upsert(values, {
+    } = await sb
+      .from('site_settings')
+      .upsert(
+        values,
+        {
           onConflict: 'id'
-        });
+        }
+      );
 
     if (error) {
       throw error;
@@ -1445,7 +1785,7 @@ async function saveSettings() {
 
     setSectionStatus(
       'settingsStatus',
-      'Settings saved.',
+      'Settings saved. Customers can now see the changes.',
       'success'
     );
 
@@ -1469,12 +1809,14 @@ async function loadSettings() {
   const {
     data,
     error
-  } =
-    await sb
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
+  } = await sb
+    .from('site_settings')
+    .select('*')
+    .eq(
+      'id',
+      1
+    )
+    .maybeSingle();
 
   if (error) {
 
@@ -1495,7 +1837,11 @@ async function loadSettings() {
 
 async function loadAll() {
 
-  if (!sb || !user || !isOwner(user)) {
+  if (
+    !sb ||
+    !user ||
+    !isOwner(user)
+  ) {
     return;
   }
 
@@ -1554,7 +1900,9 @@ function setupEventListeners() {
       'keydown',
       event => {
 
-        if (event.key === 'Enter') {
+        if (
+          event.key === 'Enter'
+        ) {
 
           event.preventDefault();
 
@@ -1573,7 +1921,9 @@ function setupEventListeners() {
       'keydown',
       event => {
 
-        if (event.key === 'Enter') {
+        if (
+          event.key === 'Enter'
+        ) {
 
           event.preventDefault();
 
@@ -1679,21 +2029,13 @@ function setupEventListeners() {
     );
   }
 
-  const addReviewBtn =
-    $('addReview');
+  /*
+    Your current admin.html does not have an
+    Add Review button.
 
-  if (addReviewBtn) {
-
-    addReviewBtn.addEventListener(
-      'click',
-      event => {
-
-        event.preventDefault();
-
-        addReview();
-      }
-    );
-  }
+    renderReviews() creates one automatically,
+    so you do NOT need to change admin.html.
+  */
 
   const saveReviewsBtn =
     $('saveReviews');
@@ -1710,63 +2052,6 @@ function setupEventListeners() {
       }
     );
   }
-}
-
-
-/* -------------------------------------------------
-   AUTH SESSION
-------------------------------------------------- */
-
-/*
-  This function is intentionally NOT called
-  when the page starts.
-
-  We want the admin page to require a fresh
-  login after every page load.
-*/
-
-function setupAuthListener() {
-
-  if (!sb) return;
-
-  sb.auth.onAuthStateChange(
-    async (_event, session) => {
-
-      const currentUser =
-        session?.user || null;
-
-      if (!currentUser) {
-
-        user = null;
-
-        showLogin();
-
-        return;
-      }
-
-      if (!isOwner(currentUser)) {
-
-        await sb.auth.signOut();
-
-        user = null;
-
-        showLogin();
-
-        setStatus(
-          'This account is not authorized to access the owner dashboard.',
-          'error'
-        );
-
-        return;
-      }
-
-      user = currentUser;
-
-      showDashboard();
-
-      await loadAll();
-    }
-  );
 }
 
 
@@ -1795,11 +2080,13 @@ async function check() {
   }
 
   /*
-    Always require the owner to enter the password
-    when the admin page is opened or reloaded.
+    IMPORTANT:
 
-    Supabase may have a saved session from a previous
-    login, so we deliberately clear it here.
+    The admin page must require the password every
+    time it is opened or refreshed.
+
+    This is intentionally kept exactly as the
+    working "best sign in feature" behavior.
   */
 
   try {
@@ -1820,7 +2107,8 @@ async function check() {
 
   if ($('passwordInput')) {
 
-    $('passwordInput').value = '';
+    $('passwordInput').value =
+      '';
   }
 
   setStatus('');
@@ -1838,6 +2126,24 @@ document.addEventListener(
     showLogin();
 
     setupEventListeners();
+
+    if (
+      !C.SUPABASE_URL ||
+      !C.SUPABASE_ANON_KEY ||
+      !C.OWNER_EMAIL
+    ) {
+
+      showSetup();
+
+      return;
+    }
+
+    if (!initializeSupabase()) {
+
+      showSetup();
+
+      return;
+    }
 
     await check();
   }
