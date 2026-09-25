@@ -959,7 +959,7 @@ async function uploadGalleryImage(
     const {
       error
     } = await sb.storage
-      .from('SITE-IMAGES')
+      .from('site-images')
       .upload(
         path,
         file,
@@ -976,7 +976,7 @@ async function uploadGalleryImage(
     const {
       data
     } = sb.storage
-      .from('SITE-IMAGES')
+      .from('site-images')
       .getPublicUrl(path);
 
     const publicUrl =
